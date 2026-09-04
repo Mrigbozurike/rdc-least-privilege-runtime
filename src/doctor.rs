@@ -14,9 +14,16 @@ fn line(ok: Option<bool>, what: &str, detail: impl AsRef<str>) {
     println!("[{mark}] {what}: {}", detail.as_ref());
 }
 
-pub async fn run() -> anyhow::Result<bool> {
+pub async fn run(request_permissions: bool) -> anyhow::Result<bool> {
     let mut healthy = true;
     line(None, "platform", format!("{} {}", std::env::consts::OS, std::env::consts::ARCH));
+    let perms = if request_permissions { crate::permissions::request() } else { crate::permissions::check() };
+    for (name, granted) in perms {
+        if !granted {
+            healthy = false;
+        }
+        line(Some(granted), "permission", format!("{name}{}", if granted { "" } else if request_permissions { " — prompt shown; grant it in System Settings, then re-run" } else { " — run `rdc doctor --request-permissions` from the GUI session" }));
+    }
     #[cfg(target_os = "linux")]
     {
         let session = std::env::var("XDG_SESSION_TYPE").unwrap_or_default();

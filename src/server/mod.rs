@@ -25,6 +25,15 @@ pub struct ServeOpts {
 }
 
 pub async fn serve(desktop: Arc<dyn Desktop>, ts: Tailscale, opts: ServeOpts) -> Result<()> {
+    // On macOS this pops the Screen Recording / Accessibility prompts on the console the first
+    // time; screenshots show only the wallpaper until the user grants and we are restarted.
+    for (name, granted) in crate::permissions::request() {
+        if granted {
+            tracing::info!("permission {name}: granted");
+        } else {
+            tracing::warn!("permission {name}: NOT granted; approve it in System Settings > Privacy & Security, then restart rdc");
+        }
+    }
     let bind_ip = match opts.bind {
         Some(ip) => ip,
         None if opts.dev_loopback => IpAddr::from([127, 0, 0, 1]),

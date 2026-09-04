@@ -3,8 +3,10 @@ mod desktop;
 mod doctor;
 mod keys;
 mod mcp;
+mod permissions;
 mod proto;
 mod server;
+mod service;
 mod tailscale;
 mod view;
 
@@ -51,7 +53,16 @@ enum Cmd {
         max: Option<u32>,
     },
     /// Check this machine's readiness to serve or to reach tailscaled.
-    Doctor,
+    Doctor {
+        /// macOS: trigger the Screen Recording / Accessibility prompts if not yet granted.
+        #[arg(long)]
+        request_permissions: bool,
+    },
+    /// Install, remove or inspect the background service that runs `rdc serve`.
+    Service {
+        #[arg(value_enum)]
+        op: ServiceOp,
+    },
     /// List displays.
     Displays,
     /// List windows.
@@ -117,6 +128,13 @@ enum Cmd {
     Whoami,
 }
 
+#[derive(Clone, Copy, clap::ValueEnum)]
+enum ServiceOp {
+    Install,
+    Uninstall,
+    Status,
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -144,8 +162,13 @@ async fn main() -> Result<()> {
             };
             mcp::run(desktop, cli.target.clone(), max).await
         }
-        Cmd::Doctor => {
-            let ok = doctor::run().await?;
+        Cmd::Service { op } => service::run(match op {
+            ServiceOp::Install => service::Op::Install,
+            ServiceOp::Uninstall => service::Op::Uninstall,
+            ServiceOp::Status => service::Op::Status,
+        }),
+        Cmd::Doctor { request_permissions } => {
+            let ok = doctor::run(request_permissions).await?;
             if !ok {
                 std::process::exit(1);
             }
@@ -211,7 +234,7 @@ async fn client(cfg: &config::Config, target: &str, cmd: Cmd) -> Result<()> {
             Some(r) => print_json(&r.whoami().await?),
             None => anyhow::bail!("whoami needs a remote --target"),
         },
-        Cmd::Serve { .. } | Cmd::Mcp { .. } | Cmd::Doctor => unreachable!(),
+        Cmd::Serve { .. } | Cmd::Mcp { .. } | Cmd::Doctor { .. } | Cmd::Service { .. } => unreachable!(),
     }
 }
 

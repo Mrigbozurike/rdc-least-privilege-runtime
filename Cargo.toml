@@ -36,6 +36,7 @@ tailscale-localapi = "0.6"
 [target.'cfg(target_os = "macos")'.dependencies]
 enigo = { version = "0.6", default-features = false }
 tailscale-localapi = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSRunningApplication"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 enigo = { version = "0.6", default-features = false }

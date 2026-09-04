@@ -214,8 +214,10 @@ fn macos_proof() -> Option<(u16, String)> {
             }
         }
     }
-    // Standalone "macsys" variant.
-    let port: u16 = std::fs::read_to_string("/Library/Tailscale/ipnport").ok()?.trim().parse().ok()?;
+    // Standalone "macsys" variant (system extension): `ipnport` is a symlink whose *target
+    // name* is the port, and the proof file is readable by the admin group.
+    let link = std::fs::read_link("/Library/Tailscale/ipnport").ok()?;
+    let port: u16 = link.to_string_lossy().trim().parse().ok()?;
     let tok = std::fs::read_to_string(format!("/Library/Tailscale/sameuserproof-{port}")).ok()?;
     Some((port, tok.trim().to_string()))
 }

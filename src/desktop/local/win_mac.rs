@@ -1,11 +1,14 @@
-//! macOS window focus. Phase 3 replaces this with NSRunningApplication + AXRaise.
+//! macOS window focus: activate the owning application via AppKit. Raising one specific
+//! window of a multi-window app would need the Accessibility API (AXRaise); activating the
+//! app brings its key window forward, which covers the dialog-clicking use case.
 use crate::proto::*;
+use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication};
 
 pub fn focus(w: &Window) -> Result<()> {
-    // Cheap, dependency-free path for now: activate the owning app by pid.
-    let status = std::process::Command::new("osascript")
-        .args(["-e", &format!("tell application \"System Events\" to set frontmost of (first process whose unix id is {}) to true", w.pid)])
-        .status()
-        .map_err(|e| RdcError::Backend(format!("osascript: {e}")))?;
-    if status.success() { Ok(()) } else { Err(RdcError::Backend("osascript activate failed".into())) }
+    let pid = w.pid as i32;
+    let app = NSRunningApplication::runningApplicationWithProcessIdentifier(pid)
+        .ok_or_else(|| RdcError::NotFound(format!("no running application with pid {pid}")))?;
+    #[allow(deprecated)]
+    let ok = app.activateWithOptions(NSApplicationActivationOptions::ActivateAllWindows);
+    if ok { Ok(()) } else { Err(RdcError::Backend(format!("macOS refused to activate pid {pid}"))) }
 }

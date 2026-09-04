@@ -2246,6 +2246,7 @@ dependencies = [
  "dirs",
  "enigo",
  "image",
+ "objc2-app-kit",
  "reqwest",
  "rmcp",
  "schemars",

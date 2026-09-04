@@ -236,7 +236,11 @@ fn key_for(k: &KeyName) -> Key {
         KeyName::Space => Key::Space,
         KeyName::Backspace => Key::Backspace,
         KeyName::Delete => Key::Delete,
+        #[cfg(not(target_os = "macos"))]
         KeyName::Insert => Key::Insert,
+        // Macs have no Insert key; kVK_Help (0x72) is the closest physical equivalent.
+        #[cfg(target_os = "macos")]
+        KeyName::Insert => Key::Other(0x72),
         KeyName::Home => Key::Home,
         KeyName::End => Key::End,
         KeyName::PageUp => Key::PageUp,
@@ -250,7 +254,18 @@ fn key_for(k: &KeyName) -> Key {
             1 => Key::F1, 2 => Key::F2, 3 => Key::F3, 4 => Key::F4, 5 => Key::F5, 6 => Key::F6,
             7 => Key::F7, 8 => Key::F8, 9 => Key::F9, 10 => Key::F10, 11 => Key::F11, 12 => Key::F12,
             13 => Key::F13, 14 => Key::F14, 15 => Key::F15, 16 => Key::F16, 17 => Key::F17, 18 => Key::F18,
-            19 => Key::F19, 20 => Key::F20, 21 => Key::F21, 22 => Key::F22, 23 => Key::F23, _ => Key::F24,
+            19 => Key::F19, 20 => Key::F20,
+            #[cfg(not(target_os = "macos"))]
+            21 => Key::F21,
+            #[cfg(not(target_os = "macos"))]
+            22 => Key::F22,
+            #[cfg(not(target_os = "macos"))]
+            23 => Key::F23,
+            #[cfg(not(target_os = "macos"))]
+            _ => Key::F24,
+            // macOS defines no virtual keycodes above F20.
+            #[cfg(target_os = "macos")]
+            _ => Key::F20,
         },
         KeyName::Mod(m) => modifier_key(*m),
         KeyName::Char(c) => Key::Unicode(*c),
