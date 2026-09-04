@@ -81,6 +81,12 @@ url = "http://brians-m4-mac-mini.your-tailnet.ts.net:7770"
   so the grants survive rebuilds (see `scripts/macos`). Runs as a per-user LaunchAgent.
 - **Windows**: xcap + SendInput. Tailscale LocalAPI over the named pipe.
 
+## For agents
+
+`skills/rdc/SKILL.md` is an Agent Skill describing how to use rdc's MCP tools and CLI and how to
+set up a target. Point your agent's skill loader at that folder, or copy it into
+`~/.claude/skills/rdc/`.
+
 ## Development
 
 ```sh
