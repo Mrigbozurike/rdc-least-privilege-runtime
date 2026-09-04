@@ -84,7 +84,50 @@ fn monitor_for(d: &Display) -> Result<Monitor> {
 }
 
 fn capture_display(d: &Display) -> Result<RgbaImage> {
-    monitor_for(d)?.capture_image().map_err(xe)
+    let t0 = std::time::Instant::now();
+    #[cfg(target_os = "macos")]
+    {
+        // CGWindowListCreateImage is shimmed through ScreenCaptureKit on recent macOS and takes
+        // seconds per call; the system `screencapture` tool uses SCK directly and is fast.
+        match screencapture_cli(d) {
+            Ok(img) => {
+                tracing::debug!("screencapture {}x{} in {:?}", img.width(), img.height(), t0.elapsed());
+                return Ok(img);
+            }
+            Err(e) => tracing::warn!("screencapture failed ({e}); falling back to xcap"),
+        }
+    }
+    let img = monitor_for(d)?.capture_image().map_err(xe)?;
+    tracing::debug!("xcap capture {}x{} in {:?}", img.width(), img.height(), t0.elapsed());
+    Ok(img)
+}
+
+/// `screencapture -x -D <n>` where n is the 1-based display index in xcap's monitor order.
+#[cfg(target_os = "macos")]
+fn screencapture_cli(d: &Display) -> Result<RgbaImage> {
+    let mons = Monitor::all().map_err(xe)?;
+    let idx = mons
+        .iter()
+        .position(|m| m.id().ok() == Some(d.id))
+        .or_else(|| mons.iter().position(|m| m.name().ok().as_deref() == Some(d.name.as_str())))
+        .unwrap_or(0);
+    let path = std::env::temp_dir().join(format!(
+        "rdc-shot-{}-{}.png",
+        std::process::id(),
+        std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0)
+    ));
+    let out = std::process::Command::new("/usr/sbin/screencapture")
+        .args(["-x", "-t", "png", "-D", &(idx + 1).to_string()])
+        .arg(&path)
+        .output()
+        .map_err(|e| RdcError::Backend(format!("screencapture: {e}")))?;
+    if !out.status.success() {
+        let _ = std::fs::remove_file(&path);
+        return Err(RdcError::Backend(format!("screencapture exited {}: {}", out.status, String::from_utf8_lossy(&out.stderr).trim())));
+    }
+    let img = image::open(&path).map_err(|e| RdcError::Backend(format!("decode screencapture png: {e}")))?.into_rgba8();
+    let _ = std::fs::remove_file(&path);
+    Ok(img)
 }
 
 pub fn screenshot(displays: &[Display], req: &ScreenshotReq) -> Result<Screenshot> {
@@ -121,7 +164,9 @@ pub fn screenshot(displays: &[Display], req: &ScreenshotReq) -> Result<Screensho
     }
 
     let (width, height) = (img.width(), img.height());
+    let t_enc = std::time::Instant::now();
     let data = encode(img, req.format)?;
+    tracing::debug!("encoded {width}x{height} {:?} ({} KB) in {:?}", req.format, data.len() / 1024, t_enc.elapsed());
     Ok(Screenshot { format: req.format, width, height, rect, data })
 }
 
