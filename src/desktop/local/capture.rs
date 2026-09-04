@@ -1,0 +1,163 @@
+//! Screen and window capture via xcap, plus compositing and downscaling.
+
+use crate::proto::*;
+use image::{RgbaImage, imageops::FilterType};
+use std::io::Cursor;
+use xcap::Monitor;
+
+pub fn backend_name() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "CoreGraphics"
+    } else if cfg!(target_os = "windows") {
+        "GDI/WGC"
+    } else if std::env::var_os("WAYLAND_DISPLAY").is_some() {
+        "wayland (portal → wlr-screencopy)"
+    } else {
+        "x11"
+    }
+}
+
+fn xe(e: xcap::XCapError) -> RdcError {
+    RdcError::Backend(format!("xcap: {e}"))
+}
+
+/// Displays as xcap sees them. On most platforms these are already in the coordinate
+/// space the input layer expects; Hyprland overrides this with `hyprctl` geometry.
+pub fn displays() -> Result<Vec<Display>> {
+    let mons = Monitor::all().map_err(xe)?;
+    let mut out = Vec::with_capacity(mons.len());
+    for m in mons {
+        out.push(Display {
+            id: m.id().map_err(xe)?,
+            name: m.name().map_err(xe)?,
+            rect: Rect {
+                x: m.x().map_err(xe)?,
+                y: m.y().map_err(xe)?,
+                w: m.width().map_err(xe)?,
+                h: m.height().map_err(xe)?,
+            },
+            scale: m.scale_factor().map_err(xe)?,
+            primary: m.is_primary().map_err(xe)?,
+        });
+    }
+    Ok(out)
+}
+
+pub fn windows() -> Result<Vec<Window>> {
+    let ws = xcap::Window::all().map_err(xe)?;
+    let mut out = Vec::new();
+    for w in ws {
+        let title = w.title().unwrap_or_default();
+        let app = w.app_name().unwrap_or_default();
+        if title.is_empty() && app.is_empty() {
+            continue;
+        }
+        out.push(Window {
+            id: w.id().map_err(xe)? as u64,
+            pid: w.pid().unwrap_or(0),
+            app,
+            title,
+            rect: Rect {
+                x: w.x().unwrap_or(0),
+                y: w.y().unwrap_or(0),
+                w: w.width().unwrap_or(0),
+                h: w.height().unwrap_or(0),
+            },
+            focused: w.is_focused().unwrap_or(false),
+            minimized: w.is_minimized().unwrap_or(false),
+        });
+    }
+    Ok(out)
+}
+
+/// Find the xcap monitor that corresponds to one of our logical displays.
+fn monitor_for(d: &Display) -> Result<Monitor> {
+    let mons = Monitor::all().map_err(xe)?;
+    // Prefer id, then name, then a point inside the display.
+    if let Some(m) = mons.iter().find(|m| m.id().ok() == Some(d.id)) {
+        return Ok(m.clone());
+    }
+    if let Some(m) = mons.iter().find(|m| m.name().ok().as_deref() == Some(d.name.as_str())) {
+        return Ok(m.clone());
+    }
+    Monitor::from_point(d.rect.x + 1, d.rect.y + 1).map_err(xe)
+}
+
+fn capture_display(d: &Display) -> Result<RgbaImage> {
+    monitor_for(d)?.capture_image().map_err(xe)
+}
+
+pub fn screenshot(displays: &[Display], req: &ScreenshotReq) -> Result<Screenshot> {
+    if displays.is_empty() {
+        return Err(RdcError::Backend("no displays found".into()));
+    }
+    let chosen: Vec<&Display> = match req.display {
+        DisplayTarget::All => displays.iter().collect(),
+        DisplayTarget::Primary => vec![
+            displays.iter().find(|d| d.primary).unwrap_or(&displays[0]),
+        ],
+        DisplayTarget::Id(id) => vec![
+            displays
+                .iter()
+                .find(|d| d.id == id)
+                .ok_or_else(|| RdcError::NotFound(format!("display {id}")))?,
+        ],
+    };
+
+    let (mut img, rect) = if chosen.len() == 1 {
+        (capture_display(chosen[0])?, chosen[0].rect)
+    } else {
+        composite(&chosen)?
+    };
+
+    if let Some(max) = req.max_long_edge {
+        let long = img.width().max(img.height());
+        if max > 0 && long > max {
+            let f = max as f64 / long as f64;
+            let nw = ((img.width() as f64 * f).round() as u32).max(1);
+            let nh = ((img.height() as f64 * f).round() as u32).max(1);
+            img = image::imageops::resize(&img, nw, nh, FilterType::Triangle);
+        }
+    }
+
+    let (width, height) = (img.width(), img.height());
+    let data = encode(img, req.format)?;
+    Ok(Screenshot { format: req.format, width, height, rect, data })
+}
+
+/// Stitch several displays into one image at the primary display's pixel density.
+fn composite(displays: &[&Display]) -> Result<(RgbaImage, Rect)> {
+    let union = displays.iter().skip(1).fold(displays[0].rect, |acc, d| acc.union(&d.rect));
+    let scale = displays.iter().find(|d| d.primary).unwrap_or(&displays[0]).scale.max(0.5);
+    let px = |v: f64| (v * scale as f64).round() as u32;
+    let mut canvas = RgbaImage::new(px(union.w as f64).max(1), px(union.h as f64).max(1));
+    for d in displays {
+        let mut img = capture_display(d)?;
+        let (tw, th) = (px(d.rect.w as f64).max(1), px(d.rect.h as f64).max(1));
+        if img.width() != tw || img.height() != th {
+            img = image::imageops::resize(&img, tw, th, FilterType::Triangle);
+        }
+        let ox = px((d.rect.x - union.x) as f64) as i64;
+        let oy = px((d.rect.y - union.y) as f64) as i64;
+        image::imageops::overlay(&mut canvas, &img, ox, oy);
+    }
+    Ok((canvas, union))
+}
+
+fn encode(img: RgbaImage, fmt: ImageFormat) -> Result<Vec<u8>> {
+    let mut buf = Cursor::new(Vec::new());
+    match fmt {
+        ImageFormat::Png => {
+            use image::codecs::png::{CompressionType, FilterType as PngFilter, PngEncoder};
+            let enc = PngEncoder::new_with_quality(&mut buf, CompressionType::Fast, PngFilter::Adaptive);
+            img.write_with_encoder(enc)
+        }
+        ImageFormat::Jpeg => {
+            use image::codecs::jpeg::JpegEncoder;
+            let rgb = image::DynamicImage::ImageRgba8(img).to_rgb8();
+            rgb.write_with_encoder(JpegEncoder::new_with_quality(&mut buf, 85))
+        }
+    }
+    .map_err(|e| RdcError::Backend(format!("encode: {e}")))?;
+    Ok(buf.into_inner())
+}
