@@ -15,8 +15,7 @@ No shell execution is exposed; use SSH for that.
 
 ## Status
 
-Phase 1 (core + Linux/Hyprland + HTTP daemon + CLI) works. MCP, macOS packaging and Windows
-follow. See the plan in the repo history for the roadmap.
+Core, Linux/Hyprland daemon, CLI and the MCP server work. macOS packaging and Windows follow.
 
 ## Quick start
 
@@ -35,6 +34,25 @@ rdc -t brians-m4-mac-mini shot --max 1568 -o shot.png
 rdc -t brians-m4-mac-mini click 512 300
 rdc -t brians-m4-mac-mini key cmd+q
 ```
+
+### Claude Code
+
+Add to `.mcp.json` in a project (or `~/.claude.json` for everywhere):
+
+```json
+{
+  "mcpServers": {
+    "macmini": { "command": "rdc", "args": ["mcp", "--target", "macmini"] }
+  }
+}
+```
+
+The agent gets `screenshot`, `displays`, `windows`, `focus`, `mouse_move`, `click`, `drag`,
+`scroll`, `type`, `key`, `clipboard_get`, `clipboard_set`. Coordinates the agent passes are
+pixels in the most recent screenshot; rdc converts them to desktop points. Actions return a
+fresh screenshot by default (`then_screenshot: false` to skip).
+
+### CLI coordinates
 
 Coordinates are logical desktop points. A screenshot reports the desktop rectangle it covers,
 so pixel `(px, py)` in an image of size `W x H` maps to

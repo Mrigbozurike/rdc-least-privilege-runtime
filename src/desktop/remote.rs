@@ -28,10 +28,6 @@ impl RemoteDesktop {
         Ok(Self { base, http })
     }
 
-    pub fn base_url(&self) -> &str {
-        &self.base
-    }
-
     fn url(&self, path: &str) -> String {
         format!("{}/v1{}", self.base, path)
     }

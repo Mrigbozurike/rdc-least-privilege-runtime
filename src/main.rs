@@ -2,9 +2,11 @@ mod config;
 mod desktop;
 mod doctor;
 mod keys;
+mod mcp;
 mod proto;
 mod server;
 mod tailscale;
+mod view;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -42,8 +44,12 @@ enum Cmd {
         #[arg(long)]
         dev_loopback: bool,
     },
-    /// Run as an MCP stdio server for an agent (phase 2).
-    Mcp,
+    /// Run as an MCP stdio server for an agent, controlling --target.
+    Mcp {
+        /// Longest screenshot edge in pixels sent to the agent (default 1568).
+        #[arg(long)]
+        max: Option<u32>,
+    },
     /// Check this machine's readiness to serve or to reach tailscaled.
     Doctor,
     /// List displays.
@@ -131,7 +137,13 @@ async fn main() -> Result<()> {
             let bind = bind.or_else(|| cfg.serve.bind.as_deref().and_then(|s| s.parse().ok()));
             server::serve(desktop, ts, server::ServeOpts { bind, port: port.unwrap_or(cfg.serve.port), allow: allow_all, dev_loopback }).await
         }
-        Cmd::Mcp => anyhow::bail!("MCP server lands in phase 2"),
+        Cmd::Mcp { max } => {
+            let desktop: Arc<dyn Desktop> = match cfg.resolve_target(&cli.target)? {
+                config::TargetKind::Local => Arc::new(LocalDesktop::new()?),
+                config::TargetKind::Url(u) => Arc::new(RemoteDesktop::new(&u)?),
+            };
+            mcp::run(desktop, cli.target.clone(), max).await
+        }
         Cmd::Doctor => {
             let ok = doctor::run().await?;
             if !ok {
@@ -199,7 +211,7 @@ async fn client(cfg: &config::Config, target: &str, cmd: Cmd) -> Result<()> {
             Some(r) => print_json(&r.whoami().await?),
             None => anyhow::bail!("whoami needs a remote --target"),
         },
-        Cmd::Serve { .. } | Cmd::Mcp | Cmd::Doctor => unreachable!(),
+        Cmd::Serve { .. } | Cmd::Mcp { .. } | Cmd::Doctor => unreachable!(),
     }
 }
 

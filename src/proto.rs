@@ -16,10 +16,6 @@ pub struct Rect {
 }
 
 impl Rect {
-    pub fn contains(&self, x: i32, y: i32) -> bool {
-        x >= self.x && y >= self.y && x < self.x + self.w as i32 && y < self.y + self.h as i32
-    }
-
     pub fn union(&self, o: &Rect) -> Rect {
         let x0 = self.x.min(o.x);
         let y0 = self.y.min(o.y);
@@ -124,18 +120,6 @@ pub struct Screenshot {
     /// The logical desktop region this image shows.
     pub rect: Rect,
     pub data: Vec<u8>,
-}
-
-impl Screenshot {
-    /// Map a pixel in this image to logical desktop coordinates.
-    pub fn to_desktop(&self, px: f64, py: f64) -> (i32, i32) {
-        let sx = self.rect.w as f64 / self.width.max(1) as f64;
-        let sy = self.rect.h as f64 / self.height.max(1) as f64;
-        (
-            (self.rect.x as f64 + px * sx).round() as i32,
-            (self.rect.y as f64 + py * sy).round() as i32,
-        )
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -281,20 +265,6 @@ pub type Result<T> = std::result::Result<T, RdcError>;
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn screenshot_maps_pixels_to_desktop() {
-        let s = Screenshot {
-            format: ImageFormat::Png,
-            width: 720,
-            height: 480,
-            rect: Rect { x: 100, y: 50, w: 1440, h: 960 },
-            data: vec![],
-        };
-        assert_eq!(s.to_desktop(0.0, 0.0), (100, 50));
-        assert_eq!(s.to_desktop(360.0, 240.0), (820, 530));
-        assert_eq!(s.to_desktop(720.0, 480.0), (1540, 1010));
-    }
 
     #[test]
     fn action_json_shape() {
