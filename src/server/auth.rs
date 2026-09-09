@@ -142,10 +142,10 @@ mod tests {
 
     #[test]
     fn allowlist_matches_login_node_tag_and_star() {
-        let a = Allowlist::new(vec!["BLSTech84@github".into(), "omarchy-fw13".into(), "tag:family".into()]);
-        assert!(a.permits(&id(Some("blstech84@github"), "x", &[])));
-        assert!(a.permits(&id(None, "Omarchy-FW13", &[])));
-        assert!(a.permits(&id(None, "aw-m18r2", &["tag:family"])));
+        let a = Allowlist::new(vec!["Alice@github".into(), "studio-mac".into(), "tag:family".into()]);
+        assert!(a.permits(&id(Some("alice@github"), "x", &[])));
+        assert!(a.permits(&id(None, "Studio-Mac", &[])));
+        assert!(a.permits(&id(None, "gaming-pc", &["tag:family"])));
         assert!(!a.permits(&id(Some("someone@github"), "other", &["tag:server"])));
         assert!(Allowlist::new(vec!["*".into()]).permits(&id(None, "anyone", &[])));
         assert!(!Allowlist::new(vec![]).permits(&id(Some("a@b"), "n", &[])));
@@ -153,7 +153,7 @@ mod tests {
 
     #[test]
     fn tailscale_ranges() {
-        assert!(is_tailscale_ip("100.66.219.116".parse().unwrap()));
+        assert!(is_tailscale_ip("100.64.0.1".parse().unwrap()));
         assert!(is_tailscale_ip("100.127.255.255".parse().unwrap()));
         assert!(!is_tailscale_ip("100.128.0.1".parse().unwrap()));
         assert!(!is_tailscale_ip("10.0.2.113".parse().unwrap()));

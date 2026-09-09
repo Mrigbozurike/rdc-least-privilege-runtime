@@ -22,7 +22,7 @@ pub struct ServeConfig {
     /// Address to bind. Default: this node's Tailscale IPv4.
     #[serde(default)]
     pub bind: Option<String>,
-    /// Tailnet logins (`user@github`), node names (`omarchy-fw13`), tags (`tag:family`), or `*`.
+    /// Tailnet logins (`user@github`), node names (`studio-mac`), tags (`tag:family`), or `*`.
     #[serde(default)]
     pub allow: Vec<String>,
 }

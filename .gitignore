@@ -1,4 +1,6 @@
 /target
+shot-*.png
+shot-*.jpg
+.mcp.json
 *.log
 .DS_Store
-.mcp.json

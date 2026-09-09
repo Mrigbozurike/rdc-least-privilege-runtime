@@ -152,7 +152,7 @@ fn ts(e: tailscale_localapi::Error) -> RdcError {
     RdcError::Backend(format!("tailscale LocalAPI: {e}"))
 }
 
-/// "brians-m4-mac-mini.dog-dragon.ts.net." → "brians-m4-mac-mini"
+/// "studio-mac.example-tailnet.ts.net." → "studio-mac"
 fn node_short(name: &str, computed: &str) -> String {
     if !computed.is_empty() {
         return computed.to_string();

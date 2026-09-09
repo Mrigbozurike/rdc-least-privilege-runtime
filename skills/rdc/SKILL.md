@@ -35,7 +35,7 @@ Rules that matter:
 Register in Claude Code (`.mcp.json` in a project or `~/.claude.json`):
 
 ```json
-{ "mcpServers": { "macmini": { "command": "rdc", "args": ["mcp", "--target", "macmini"] } } }
+{ "mcpServers": { "studio-mac": { "command": "rdc", "args": ["mcp", "--target", "studio-mac"] } } }
 ```
 
 `--target` is `local`, a name from config `[targets]`, a `host[:port]`, or a URL.
@@ -43,14 +43,14 @@ Register in Claude Code (`.mcp.json` in a project or `~/.claude.json`):
 ## CLI equivalents
 
 ```sh
-rdc -t macmini shot --max 1568 -o shot.png   # prints the desktop rect the image covers
-rdc -t macmini windows                       # JSON list
-rdc -t macmini click 1280 720                # desktop points, not image pixels
-rdc -t macmini key cmd+space
-rdc -t macmini type "hello"
-rdc -t macmini focus --app Safari
-rdc -t macmini clip                          # read clipboard; `clip TEXT` sets it
-rdc -t macmini whoami                        # how the daemon identifies you
+rdc -t studio-mac shot --max 1568 -o shot.png   # prints the desktop rect the image covers
+rdc -t studio-mac windows                       # JSON list
+rdc -t studio-mac click 1280 720                # desktop points, not image pixels
+rdc -t studio-mac key cmd+space
+rdc -t studio-mac type "hello"
+rdc -t studio-mac focus --app Safari
+rdc -t studio-mac clip                          # read clipboard; `clip TEXT` sets it
+rdc -t studio-mac whoami                        # how the daemon identifies you
 ```
 
 CLI coordinates are desktop points. Map from an image: `x = rect.x + px * rect.w / W`.
@@ -73,7 +73,7 @@ Config lives at `~/.config/rdc/config.toml` (Linux) or
 port = 7770
 allow = ["you@example.com", "tag:family"]   # tailnet logins, node names, tags, or "*"
 
-[targets.macmini]
+[targets.studio-mac]
 url = "http://host.tailnet.ts.net:7770"
 ```
 
@@ -89,6 +89,7 @@ url = "http://host.tailnet.ts.net:7770"
   `tccutil reset Accessibility dev.bscott.rdc`, then restart the service.
 - Jump System Settings to a pane from SSH:
   `open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"`.
+- The bundle identifier / LaunchAgent label is `dev.bscott.rdc` (forks may rename it).
 - Restart: `launchctl kickstart -k gui/$(id -u)/dev.bscott.rdc`. Logs:
   `~/Library/Application Support/rdc/serve.log`.
 - Screenshots use `/usr/sbin/screencapture` (fast); the CoreGraphics fallback is slow on Tahoe.

@@ -3,7 +3,7 @@ name = "rdc"
 version = "0.1.0"
 edition = "2024"
 description = "Remote Desktop Control: let an AI agent see and drive another machine's desktop over Tailscale"
-license = "MIT"
+license = "AGPL-3.0-or-later"
 repository = "https://github.com/bscott/rdc"
 
 [dependencies]

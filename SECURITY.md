@@ -1,0 +1,50 @@
+# Security
+
+## What rdc is
+
+`rdc serve` gives whoever it trusts full control of a logged-in desktop session: they can see the
+screen, move the mouse, type, press shortcuts, focus windows and read or write the clipboard.
+Treat it exactly like handing someone the keyboard. There is deliberately no shell tool, but a
+desktop session is more than enough to open one.
+
+## Threat model
+
+**Trusted:** your Tailscale tailnet, your tailnet identity provider, the machine running
+`rdc serve`, and every identity in `[serve].allow`.
+
+**How access is decided.** The daemon binds only to the machine's Tailscale IP (it refuses any
+other non-loopback address). For every request it takes the peer IP from the TCP connection,
+asks the local `tailscaled` who that IP is (`whois`), and compares the login name, node name and
+tags against the allowlist. Results are cached for 30 seconds. There are no passwords, tokens or
+TLS: the tailnet's WireGuard layer provides encryption and the identity.
+
+**Consequences.**
+
+- Anyone whose login, node or tag matches the allowlist has unrestricted desktop control. `"*"`
+  allows the entire tailnet. Tags match every node carrying them.
+- If an allowed identity is compromised (stolen device, leaked auth key, shared tailnet), the
+  attacker has your desktop. Tailscale ACLs are your second layer: restrict which nodes may reach
+  the rdc port at all.
+- `whois` is only as accurate as `tailscaled`. If the local daemon is unavailable, rdc falls back
+  to the `tailscale` CLI; if neither works, every request is rejected.
+- `--dev-loopback` binds 127.0.0.1 and disables authentication for loopback connections. It is
+  for local development and must never be used on a shared machine or forwarded.
+- MCP clients talk to `rdc mcp` over stdio on the operator's machine. The operator's agent
+  inherits the operator's tailnet identity; anything the agent does is done as you.
+- The macOS build needs Screen Recording and Accessibility permissions. Grant them only to a
+  signed bundle you built or verified; see `scripts/macos`.
+
+**Not yet implemented** (tracked as issues): an append-only audit log, per-identity capability
+scoping (view-only vs. input), rate limiting, and a pause when a human is physically using the
+input devices.
+
+## Reporting a vulnerability
+
+Please do not open a public issue for security problems. Use GitHub's private vulnerability
+reporting on this repository ("Report a vulnerability" under the Security tab). You should get a
+response within a week. Fixes will be released as a new tagged version with a note in the
+release description.
+
+## Supported versions
+
+Only the latest tagged release receives fixes.

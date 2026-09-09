@@ -1,6 +1,6 @@
 {
   "mcpServers": {
     "rdc-local": { "command": "rdc", "args": ["mcp", "--target", "local"] },
-    "rdc-macmini": { "command": "rdc", "args": ["mcp", "--target", "macmini"] }
+    "rdc-studio-mac": { "command": "rdc", "args": ["mcp", "--target", "studio-mac"] }
   }
 }

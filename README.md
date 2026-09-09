@@ -43,10 +43,10 @@ rdc serve --allow you@example.com            # or put it in config, see below
 On your machine:
 
 ```sh
-rdc -t brians-m4-mac-mini whoami             # host[:port], URL, or a name from config
-rdc -t brians-m4-mac-mini shot --max 1568 -o shot.png
-rdc -t brians-m4-mac-mini click 512 300
-rdc -t brians-m4-mac-mini key cmd+q
+rdc -t studio-mac whoami             # host[:port], URL, or a name from config
+rdc -t studio-mac shot --max 1568 -o shot.png
+rdc -t studio-mac click 512 300
+rdc -t studio-mac key cmd+q
 ```
 
 ### Claude Code
@@ -56,7 +56,7 @@ Add to `.mcp.json` in a project (or `~/.claude.json` for everywhere); see `.mcp.
 ```json
 {
   "mcpServers": {
-    "macmini": { "command": "rdc", "args": ["mcp", "--target", "macmini"] }
+    "studio-mac": { "command": "rdc", "args": ["mcp", "--target", "studio-mac"] }
   }
 }
 ```
@@ -82,8 +82,8 @@ port = 7770
 # tailnet logins, node names, tags, or "*"
 allow = ["you@example.com", "tag:family"]
 
-[targets.macmini]
-url = "http://brians-m4-mac-mini.your-tailnet.ts.net:7770"
+[targets.studio-mac]
+url = "http://studio-mac.example-tailnet.ts.net:7770"
 ```
 
 ## Platform notes
@@ -92,7 +92,9 @@ url = "http://brians-m4-mac-mini.your-tailnet.ts.net:7770"
   the wlr virtual pointer and keyboard protocols (Hyprland, sway, river...). On Hyprland,
   window listing and focus use `hyprctl`. X11 sessions use xcap/x11rb.
 - **macOS**: needs Screen Recording and Accessibility granted once. Ship as a signed `.app`
-  so the grants survive rebuilds (see `scripts/macos`). Runs as a per-user LaunchAgent.
+  so the grants survive rebuilds (see `scripts/macos`). Runs as a per-user LaunchAgent. The
+  bundle identifier is `dev.bscott.rdc`; change it in `scripts/macos/bundle-and-sign.sh` and
+  `src/service/mod.rs` if you fork.
 - **Windows**: xcap + SendInput. Tailscale LocalAPI over the named pipe.
 
 ## For agents
@@ -109,3 +111,21 @@ cargo test
 ./target/release/rdc serve --dev-loopback     # unauthenticated 127.0.0.1, for local testing only
 ./target/release/rdc -t http://127.0.0.1:7770 shot
 ```
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for the threat model and how to report a vulnerability. In one
+line: anyone on the allowlist has full control of the desktop, so the allowlist and your tailnet
+are the whole security boundary.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). CI runs rustfmt, clippy and tests on Linux, macOS and
+Windows.
+
+## License
+
+rdc is free software under the [GNU Affero General Public License v3.0 or later](LICENSE).
+If you modify rdc and let others interact with it over a network (including running a modified
+`rdc serve` that other people's agents connect to), the AGPL requires you to offer them the
+corresponding source. Copyright (C) 2026 Brian Scott.
