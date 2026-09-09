@@ -103,13 +103,7 @@ impl Desktop for LocalDesktop {
 
     async fn input(&self, action: InputAction) -> Result<()> {
         let displays = self.logical_displays()?;
-        let bounds = displays
-            .iter()
-            .skip(1)
-            .fold(displays.first().map(|d| d.rect).unwrap_or(Rect { x: 0, y: 0, w: 0, h: 0 }), |acc, d| {
-                acc.union(&d.rect)
-            });
-        self.input.input(action, bounds).await
+        self.input.input(action, displays).await
     }
 
     async fn clipboard_get(&self) -> Result<String> {

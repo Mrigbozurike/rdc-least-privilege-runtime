@@ -169,7 +169,13 @@ async fn main() -> Result<()> {
             server::serve(
                 desktop,
                 ts,
-                server::ServeOpts { bind, port: port.unwrap_or(cfg.serve.port), allow: allow_all, dev_loopback },
+                server::ServeOpts {
+                    bind,
+                    port: port.unwrap_or(cfg.serve.port),
+                    allow: allow_all,
+                    hosts: cfg.serve.hosts.clone(),
+                    dev_loopback,
+                },
             )
             .await
         }
@@ -180,11 +186,20 @@ async fn main() -> Result<()> {
             };
             mcp::run(desktop, cli.target.clone(), max).await
         }
-        Cmd::Service { op } => service::run(match op {
-            ServiceOp::Install => service::Op::Install,
-            ServiceOp::Uninstall => service::Op::Uninstall,
-            ServiceOp::Status => service::Op::Status,
-        }),
+        Cmd::Service { op } => {
+            if matches!(op, ServiceOp::Install) && cfg.serve.allow.is_empty() {
+                anyhow::bail!(
+                    "[serve].allow in {} is empty; the service would start `rdc serve` with nobody allowed and exit. \
+                     Add at least one tailnet login, node name or tag there first.",
+                    config::path().display()
+                );
+            }
+            service::run(match op {
+                ServiceOp::Install => service::Op::Install,
+                ServiceOp::Uninstall => service::Op::Uninstall,
+                ServiceOp::Status => service::Op::Status,
+            })
+        }
         Cmd::Doctor { request_permissions } => {
             let ok = doctor::run(request_permissions).await?;
             if !ok {

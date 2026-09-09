@@ -25,11 +25,15 @@ pub struct ServeConfig {
     /// Tailnet logins (`user@github`), node names (`studio-mac`), tags (`tag:family`), or `*`.
     #[serde(default)]
     pub allow: Vec<String>,
+    /// Extra host names clients may use in the URL (the node's Tailscale IPs, MagicDNS name and
+    /// hostname are always accepted). Requests with any other `Host` header are refused.
+    #[serde(default)]
+    pub hosts: Vec<String>,
 }
 
 impl Default for ServeConfig {
     fn default() -> Self {
-        Self { port: DEFAULT_PORT, bind: None, allow: vec![] }
+        Self { port: DEFAULT_PORT, bind: None, allow: vec![], hosts: vec![] }
     }
 }
 

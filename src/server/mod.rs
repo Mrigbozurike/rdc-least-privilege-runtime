@@ -21,6 +21,8 @@ pub struct ServeOpts {
     pub bind: Option<IpAddr>,
     pub port: u16,
     pub allow: Vec<String>,
+    /// Extra `Host` names to accept besides this node's own addresses and names.
+    pub hosts: Vec<String>,
     pub dev_loopback: bool,
 }
 
@@ -44,7 +46,10 @@ pub async fn serve(desktop: Arc<dyn Desktop>, ts: Tailscale, opts: ServeOpts) ->
             *ips.first().context("this node has no Tailscale IP; is tailscaled up?")?
         }
     };
-    if !opts.dev_loopback && !bind_ip.is_loopback() && !is_tailscale_ip(bind_ip) {
+    if opts.dev_loopback && !bind_ip.is_loopback() {
+        anyhow::bail!("--dev-loopback only allows a loopback bind address, not {bind_ip}");
+    }
+    if !opts.dev_loopback && !is_tailscale_ip(bind_ip) {
         anyhow::bail!(
             "{bind_ip} is not a Tailscale address; refusing to expose the desktop on it (use --dev-loopback for 127.0.0.1)"
         );
@@ -53,7 +58,19 @@ pub async fn serve(desktop: Arc<dyn Desktop>, ts: Tailscale, opts: ServeOpts) ->
         anyhow::bail!("allowlist is empty: set [serve].allow in config or pass --allow; nobody could connect");
     }
     let addr = SocketAddr::new(bind_ip, opts.port);
-    let auth = auth::Auth::new(ts, Allowlist::new(opts.allow), opts.dev_loopback);
+    // Names a legitimate client would put in the URL. Anything else in the Host header means the
+    // request was not addressed to us (e.g. a browser lured by DNS rebinding) and is refused.
+    let mut hosts: Vec<String> = vec![bind_ip.to_string()];
+    if let Ok(ips) = ts.self_ips().await {
+        hosts.extend(ips.iter().map(|ip| ip.to_string()));
+    }
+    hosts.extend(ts.self_names().await);
+    hosts.extend(opts.hosts);
+    if opts.dev_loopback {
+        hosts.extend(["localhost".to_string(), "127.0.0.1".to_string(), "::1".to_string()]);
+    }
+    tracing::debug!(?hosts, "accepted Host names");
+    let auth = auth::Auth::new(ts, Allowlist::new(opts.allow), auth::HostAllow::new(hosts), opts.dev_loopback);
     if opts.dev_loopback {
         tracing::warn!("--dev-loopback: requests from 127.0.0.1 are NOT authenticated");
     }

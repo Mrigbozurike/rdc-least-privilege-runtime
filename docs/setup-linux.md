@@ -14,10 +14,14 @@ should work but are untested; please report what you find.
 | Window list and focus | `hyprctl` when `HYPRLAND_INSTANCE_SIGNATURE` is set | Hyprland only |
 | Clipboard | `wlr-data-control` | wlroots compositors and KDE |
 
-GNOME and KDE do not implement the wlr virtual input protocols. The input library rdc uses
-(enigo) has alternative paths through the RemoteDesktop portal and libei; they are compiled in
-but not yet exercised by the maintainers. `rdc doctor` reports the session type and whether
-input initialised.
+GNOME and KDE do not implement the wlr virtual input protocols, so on those desktops **rdc can
+take screenshots but cannot move the mouse or type yet**. The input library rdc uses (enigo) has
+paths through the RemoteDesktop portal and libei, but rdc does not enable them; wiring and
+testing them is tracked as an issue. `rdc doctor` reports the session type and whether input
+initialised.
+
+rdc pins exactly one input backend per session (Wayland when `WAYLAND_DISPLAY` is set, X11
+otherwise) so events are not delivered twice to Xwayland applications.
 
 Absolute pointer positioning under Wayland is expressed as a fraction of the first output's
 mode, which rdc maps from logical desktop coordinates, so clicks land correctly on scaled

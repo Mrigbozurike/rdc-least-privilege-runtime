@@ -15,6 +15,9 @@ until someone confirms it.
 
 ## Not implemented yet
 
+- **Multiple monitors.** Absolute mouse positioning currently normalises against the primary
+  monitor, so only the primary display can be targeted reliably. Secondary and negative-origin
+  displays need a `SendInput` path using the virtual-desktop extents.
 - `focus` (bringing a window forward) returns "unsupported". `SetForegroundWindow` has
   focus-stealing rules that need care.
 - `rdc service install`. Run `rdc serve` from a Task Scheduler task at logon, or a shortcut in

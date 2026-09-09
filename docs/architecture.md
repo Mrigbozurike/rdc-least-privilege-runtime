@@ -40,11 +40,12 @@ Under Wayland, enigo's absolute pointer move takes a fraction of the first outpu
 mode. `desktop/local/input.rs` converts points → fraction of the whole layout → that extent, which
 is why clicks land correctly on scaled displays.
 
-## Input thread
+## Input and clipboard threads
 
-enigo and arboard handles are owned by one dedicated OS thread (`InputWorker`), fed over a
-channel, because neither is happily shared across threads on every platform. This also
-serializes input naturally.
+The enigo handle is owned by one dedicated OS thread and the arboard handle by another, each fed
+over a channel, because neither is happily shared across threads on every platform. Keeping them
+apart means a clipboard owner that never answers (Wayland transfers have no deadline) cannot
+block mouse and keyboard; the caller also gives up on clipboard operations after 5 seconds.
 
 ## Wire API
 
@@ -67,12 +68,19 @@ live in `src/proto.rs` and are shared by both sides.
 
 1. `serve` resolves the bind address: `--bind`, config, or the node's Tailscale IPv4 from the
    LocalAPI. Non-Tailscale addresses are refused (except `--dev-loopback`).
-2. For every connection the middleware takes the peer IP from the socket.
-3. Loopback → refused, unless `--dev-loopback`. Non-Tailscale range → refused.
+2. For every request the middleware first checks the `Host` header against the node's own IPs,
+   MagicDNS name, hostname and `[serve].hosts`; anything else is `421 Misdirected Request`.
+3. It then takes the peer IP from the socket. Loopback → refused, unless `--dev-loopback`.
+   Non-Tailscale range → refused.
 4. `tailscale.rs` calls `GET /localapi/v0/whois?addr=IP` on `tailscaled` (unix socket on Linux,
    loopback TCP + proof token for the macOS GUI variants, named pipe on Windows, or the
    `tailscale whois --json` CLI as fallback). The response gives login, node name and tags.
-5. The identity is matched against the allowlist and cached for 30 s.
+5. Tagged nodes have their creator's login stripped; they are identified by tags and node name
+   only. The identity is matched against the allowlist and cached for 30 s.
+
+Input requests are validated before they touch the desktop: coordinates must lie inside the
+union of the displays, scroll magnitudes are capped at 100 steps, and unsupported keys are
+refused before any modifier is pressed. A drag always releases the button even if a move fails.
 
 ## Per-platform pieces
 

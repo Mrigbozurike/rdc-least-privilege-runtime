@@ -10,7 +10,7 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::net::{IpAddr, SocketAddr};
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
@@ -37,9 +37,41 @@ impl Allowlist {
     }
 }
 
+/// Host names (without port) that requests may be addressed to.
+#[derive(Debug, Clone)]
+pub struct HostAllow {
+    names: HashSet<String>,
+}
+
+impl HostAllow {
+    pub fn new(names: Vec<String>) -> Self {
+        Self { names: names.into_iter().map(|n| normalize_host(&n)).filter(|n| !n.is_empty()).collect() }
+    }
+
+    /// `host` is the raw `Host` header value or URI authority, possibly with a port.
+    pub fn permits(&self, host: &str) -> bool {
+        self.names.contains(&normalize_host(host))
+    }
+}
+
+/// Lower-case, strip a trailing dot, the port, and IPv6 brackets.
+fn normalize_host(raw: &str) -> String {
+    let h = raw.trim().to_lowercase();
+    let h = h.trim_end_matches('.');
+    let h = if let Some(rest) = h.strip_prefix('[') {
+        rest.split(']').next().unwrap_or("")
+    } else if h.matches(':').count() == 1 {
+        h.split(':').next().unwrap_or("")
+    } else {
+        h
+    };
+    h.trim_end_matches('.').to_string()
+}
+
 pub struct Auth {
     ts: Tailscale,
     allow: Allowlist,
+    hosts: HostAllow,
     dev_loopback: bool,
     cache: Mutex<HashMap<IpAddr, (Instant, Identity)>>,
 }
@@ -47,8 +79,18 @@ pub struct Auth {
 const CACHE_TTL: Duration = Duration::from_secs(30);
 
 impl Auth {
-    pub fn new(ts: Tailscale, allow: Allowlist, dev_loopback: bool) -> Self {
-        Self { ts, allow, dev_loopback, cache: Mutex::new(HashMap::new()) }
+    pub fn new(ts: Tailscale, allow: Allowlist, hosts: HostAllow, dev_loopback: bool) -> Self {
+        Self { ts, allow, hosts, dev_loopback, cache: Mutex::new(HashMap::new()) }
+    }
+
+    /// Refuse requests whose `Host` names something we are not. This is the one line of
+    /// defence against a browser on an allowed machine being pointed at us via DNS rebinding.
+    pub fn check_host(&self, host: Option<&str>) -> Result<(), RdcError> {
+        match host {
+            Some(h) if self.hosts.permits(h) => Ok(()),
+            Some(h) => Err(RdcError::Unauthorized(format!("request addressed to unexpected host {h:?}"))),
+            None => Err(RdcError::Unauthorized("request has no Host header".into())),
+        }
     }
 
     pub async fn identify(&self, ip: IpAddr) -> Result<Identity, RdcError> {
@@ -114,6 +156,20 @@ pub async fn middleware(
     mut req: Request<Body>,
     next: Next,
 ) -> Response {
+    let host = req
+        .headers()
+        .get(axum::http::header::HOST)
+        .and_then(|v| v.to_str().ok())
+        .map(str::to_owned)
+        .or_else(|| req.uri().authority().map(|a| a.to_string()));
+    if let Err(e) = state.auth.check_host(host.as_deref()) {
+        tracing::warn!(peer = %peer.ip(), error = %e, "rejected");
+        return (
+            StatusCode::MISDIRECTED_REQUEST,
+            axum::Json(ApiError { code: e.code().into(), message: e.message().to_string() }),
+        )
+            .into_response();
+    }
     match state.auth.authorize(peer.ip()).await {
         Ok(id) => {
             tracing::info!(peer = %peer.ip(), who = id.login.as_deref().unwrap_or(&id.node), method = %req.method(), path = %req.uri().path(), "request");
@@ -149,6 +205,22 @@ mod tests {
         assert!(!a.permits(&id(Some("someone@github"), "other", &["tag:server"])));
         assert!(Allowlist::new(vec!["*".into()]).permits(&id(None, "anyone", &[])));
         assert!(!Allowlist::new(vec![]).permits(&id(Some("a@b"), "n", &[])));
+        // A tagged node never carries a login (see tailscale::identity), so only its tag or
+        // node name can match.
+        assert!(!a.permits(&id(None, "alice-server", &["tag:server"])));
+    }
+
+    #[test]
+    fn host_allow_normalizes() {
+        let h =
+            HostAllow::new(vec!["Studio-Mac.example.ts.net.".into(), "100.64.0.5".into(), "fd7a:115c:a1e0::1".into()]);
+        assert!(h.permits("studio-mac.example.ts.net:7770"));
+        assert!(h.permits("STUDIO-MAC.EXAMPLE.TS.NET"));
+        assert!(h.permits("100.64.0.5:7770"));
+        assert!(h.permits("[fd7a:115c:a1e0::1]:7770"));
+        assert!(!h.permits("attacker.example.com:7770"));
+        assert!(!h.permits("100.64.0.6"));
+        assert!(!h.permits(""));
     }
 
     #[test]

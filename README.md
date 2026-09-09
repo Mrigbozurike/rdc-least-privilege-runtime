@@ -24,17 +24,17 @@ button, and carries on.
   address and asks the local `tailscaled` who each caller is. You allow tailnet logins, device
   names or tags. Your tailnet is the security boundary.
 - **No shell.** rdc is a screen-and-input surface only. Use SSH for commands.
-- **One static binary**, written in Rust. Same binary is the daemon, the CLI and the MCP server.
+- **One binary**, written in Rust. The same executable is the daemon, the CLI and the MCP server.
 
 ## Status
 
 | Target platform | State | Notes |
 |---|---|---|
 | Linux, Wayland (Hyprland / wlroots) | verified | portal or wlr-screencopy capture, wlr virtual input, `hyprctl` window control |
-| Linux, Wayland (GNOME, KDE) | compiles, untested | portal capture; input via enigo's portal/libei paths |
+| Linux, Wayland (GNOME, KDE) | capture only | screenshots via the portal work; synthetic input needs the RemoteDesktop portal, not wired up yet |
 | Linux, X11 | compiles, untested | |
 | macOS 15+, Apple silicon | verified | needs Screen Recording + Accessibility, see [macOS setup](docs/setup-macos.md) |
-| Windows 10/11 | compiles in CI, untested | window focus and service install not implemented yet |
+| Windows 10/11 | compiles in CI, untested | single monitor only; window focus and service install not implemented yet |
 
 CI builds and tests all three on every push. Tagged releases attach binaries, which are **not
 code-signed** (see [Install](docs/install.md#unsigned-binaries)).
@@ -44,17 +44,25 @@ code-signed** (see [Install](docs/install.md#unsigned-binaries)).
 **1. Install rdc on both machines.** Download a release archive or `cargo install --git
 https://github.com/bscott/rdc`. Details and build dependencies: [docs/install.md](docs/install.md).
 
-**2. On the machine you want to control**, check readiness and start the daemon, allowing your own
-tailnet login:
+**2. On the machine you want to control**, write the allowlist into the config file, check
+readiness, and start the daemon:
+
+```toml
+# Linux: ~/.config/rdc/config.toml   macOS: ~/Library/Application Support/rdc/config.toml
+# Windows: %APPDATA%\rdc\config.toml
+[serve]
+allow = ["you@example.com"]      # tailnet logins, device names, or tags
+```
 
 ```sh
 rdc doctor
-rdc serve --allow you@example.com
+rdc serve
 ```
 
 `rdc doctor` tells you if a permission or `tailscaled` is missing. When it works, install it as a
 background service so it survives reboots: `rdc service install` (macOS LaunchAgent or Linux
-systemd user service). macOS needs two one-time permission grants; follow
+systemd user service). The service reads the same config file, which is why the allowlist goes
+there rather than on the command line. macOS needs two one-time permission grants; follow
 [docs/setup-macos.md](docs/setup-macos.md).
 
 **3. On your laptop**, talk to it by Tailscale hostname:
@@ -66,8 +74,8 @@ rdc -t studio-mac click 640 400                 # desktop coordinates
 rdc -t studio-mac key cmd+q
 ```
 
-**4. Give it to your agent.** Add a target to `~/.config/rdc/config.toml` and register the MCP
-server in Claude Code:
+**4. Give it to your agent.** Add a target to your own machine's config file (same per-platform
+paths as above) and register the MCP server in Claude Code:
 
 ```toml
 [targets.studio-mac]
@@ -103,9 +111,10 @@ agents how to use rdc well.
 ## How it stays safe
 
 `rdc serve` refuses to bind anything but a Tailscale address (or `127.0.0.1` with the explicit
-`--dev-loopback` testing flag, which disables auth). For each request it resolves the peer IP
-through `tailscaled`'s `whois` and matches the login, node name or tags against your allowlist.
-An empty allowlist refuses to start. Everyone on the allowlist has full control of the desktop;
+`--dev-loopback` testing flag, which disables auth). For each request it checks that the `Host`
+header names this machine, resolves the peer IP through `tailscaled`'s `whois`, and matches the
+login, node name or tags against your allowlist. Tagged devices are identified by their tags
+only, never by the login of whoever created them. An empty allowlist refuses to start. Everyone on the allowlist has full control of the desktop;
 there are no finer permissions yet. Read [SECURITY.md](SECURITY.md) before exposing a machine
 you care about.
 

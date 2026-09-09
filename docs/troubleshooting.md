@@ -20,6 +20,9 @@ which one failed.
 | `403 … is not in the allowlist` | whois succeeded but you're not allowed | add your login/node/tag; `rdc -t HOST whoami` shows what the daemon sees once allowed, the 403 message shows it when not |
 | `403 … is not a Tailscale address` | request arrived from a non-tailnet IP | use the Tailscale hostname or 100.x address |
 | `403 loopback connections are not accepted` | you're on the same machine | use `--target local`, or start the daemon with `--dev-loopback` for testing |
+| `421 request addressed to unexpected host` | the URL uses a name the daemon doesn't recognise as itself | use the Tailscale MagicDNS name or IP, or add the name to `[serve].hosts` |
+| `400 point (…) is outside the desktop` | coordinates beyond the displays | check `rdc displays`; with MCP, take a fresh screenshot |
+| `400 scroll steps must be within ±100` | scroll amount too large | scroll in smaller steps |
 
 ## Screenshots
 

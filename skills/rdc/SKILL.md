@@ -64,7 +64,8 @@ On the machine to control:
 
 ```sh
 rdc doctor                               # tailscaled reachable, displays, permissions
-rdc serve --allow you@example.com        # or [serve].allow in config
+# put the allowlist in the config file first (see below); the service reads it from there
+rdc serve                                # foreground test
 rdc service install                      # LaunchAgent (macOS) / systemd --user (Linux)
 ```
 
@@ -101,13 +102,16 @@ url = "http://host.tailnet.ts.net:7770"
 ### Linux (Wayland/Hyprland)
 
 Capture via portal Screenshot or wlr-screencopy, input via wlr virtual pointer/keyboard,
-window list and focus via `hyprctl`. GNOME and KDE work through the portal; X11 via xcap.
+window list and focus via `hyprctl`. On GNOME and KDE only screenshots work today (no synthetic
+input); X11 via xcap.
 
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `403 ... not in the allowlist` | your tailnet login/node not allowed | add it to `[serve].allow`, restart daemon |
+| `403 ... not in the allowlist` | your tailnet login/node not allowed (tagged devices match only by tag or node name) | add it to `[serve].allow`, restart daemon |
+| `421 ... unexpected host` | URL host isn't a name the daemon knows for itself | use the Tailscale name/IP or add to `[serve].hosts` |
+| `400 ... outside the desktop` / `scroll steps` | out-of-range coordinates or scroll | take a new screenshot; scroll ≤100 steps |
 | `not a Tailscale address` / connection refused | connecting from outside the tailnet, or daemon bound elsewhere | use the Tailscale hostname; check `rdc doctor` on the target |
 | Screenshot is only the wallpaper (macOS) | Screen Recording not granted to *this* build | re-grant; check `rdc doctor`; avoid ad-hoc signing |
 | Input does nothing (macOS) | Accessibility not granted | grant, restart daemon |

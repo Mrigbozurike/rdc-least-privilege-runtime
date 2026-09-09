@@ -113,12 +113,13 @@ impl Tailscale {
         };
         match via_api {
             Some(Ok(w)) => {
-                return Ok(Identity {
-                    login: Some(w.user_profile.login_name).filter(|s| !s.is_empty()),
-                    node: node_short(&w.node.name, &w.node.computed_name),
-                    tags: w.node.tags,
-                    ip: ip.to_string(),
-                });
+                return Ok(identity(
+                    Some(w.user_profile.login_name),
+                    &w.node.name,
+                    &w.node.computed_name,
+                    w.node.tags,
+                    ip,
+                ));
             }
             Some(Err(e)) => tracing::debug!("LocalAPI whois failed ({e}); trying CLI"),
             None => {}
@@ -139,13 +140,47 @@ impl Tailscale {
         }
         let w: WhoIsJson =
             serde_json::from_slice(&out.stdout).map_err(|e| RdcError::Backend(format!("whois json: {e}")))?;
-        Ok(Identity {
-            login: w.user.map(|u| u.login_name).filter(|s| !s.is_empty()),
-            node: node_short(&w.node.name, &w.node.computed_name),
-            tags: w.node.tags,
-            ip: ip.to_string(),
-        })
+        Ok(identity(w.user.map(|u| u.login_name), &w.node.name, &w.node.computed_name, w.node.tags, ip))
     }
+
+    /// Names this node answers to: its MagicDNS name and its short hostname.
+    pub async fn self_names(&self) -> Vec<String> {
+        let mut names = Vec::new();
+        let status = match &self.api {
+            #[cfg(unix)]
+            Api::Unix(a) => a.status().await.ok(),
+            #[cfg(windows)]
+            Api::Pipe(a) => a.status().await.ok(),
+            #[cfg(target_os = "macos")]
+            Api::Tcp(a) => a.status().await.ok(),
+            Api::Cli(_) | Api::None => None,
+        };
+        if let Some(s) = status {
+            names.push(s.self_status.dnsname);
+            names.push(s.self_status.hostname);
+        } else if let Some(cli) = &self.cli
+            && let Ok(out) = Command::new(cli).args(["status", "--json"]).output()
+            && out.status.success()
+            && let Ok(v) = serde_json::from_slice::<serde_json::Value>(&out.stdout)
+        {
+            for k in ["DNSName", "HostName"] {
+                if let Some(n) = v.pointer(&format!("/Self/{k}")).and_then(|x| x.as_str()) {
+                    names.push(n.to_string());
+                }
+            }
+        }
+        names.into_iter().map(|n| n.trim_end_matches('.').to_lowercase()).filter(|n| !n.is_empty()).collect()
+    }
+}
+
+/// Build the identity rdc authorizes against.
+///
+/// Tailscale reports the *creating user's* profile for tagged nodes, but for ACL purposes a
+/// tagged node is identified by its tags only. Carrying the creator's login through would let
+/// any server tagged by an allowed user inherit that user's desktop access, so drop it.
+fn identity(login: Option<String>, name: &str, computed: &str, tags: Vec<String>, ip: IpAddr) -> Identity {
+    let login = if tags.is_empty() { login.filter(|s| !s.is_empty()) } else { None };
+    Identity { login, node: node_short(name, computed), tags, ip: ip.to_string() }
 }
 
 fn ts(e: tailscale_localapi::Error) -> RdcError {
@@ -222,4 +257,22 @@ fn macos_proof() -> Option<(u16, String)> {
     let port: u16 = link.to_string_lossy().trim().parse().ok()?;
     let tok = std::fs::read_to_string(format!("/Library/Tailscale/sameuserproof-{port}")).ok()?;
     Some((port, tok.trim().to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn tagged_nodes_do_not_inherit_creator_login() {
+        let ip: IpAddr = "100.64.0.2".parse().unwrap();
+        let tagged =
+            identity(Some("alice@example.com".into()), "srv.example.ts.net.", "srv", vec!["tag:server".into()], ip);
+        assert_eq!(tagged.login, None);
+        assert_eq!(tagged.tags, vec!["tag:server".to_string()]);
+        assert_eq!(tagged.node, "srv");
+        let user = identity(Some("alice@example.com".into()), "laptop.example.ts.net.", "", vec![], ip);
+        assert_eq!(user.login.as_deref(), Some("alice@example.com"));
+        assert_eq!(user.node, "laptop");
+    }
 }
