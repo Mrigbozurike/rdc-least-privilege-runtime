@@ -119,21 +119,15 @@ jobs:
           sha256sum * > SHA256SUMS
           cat SHA256SUMS
 
+      - uses: actions/checkout@v5
+        with:
+          path: src
+
+      - name: release notes from CHANGELOG.md
+        run: src/scripts/release-notes.sh "${GITHUB_REF_NAME}" src/CHANGELOG.md > RELEASE_NOTES.md && cat RELEASE_NOTES.md
+
       - uses: softprops/action-gh-release@v2
         with:
           files: artifacts/*
+          body_path: RELEASE_NOTES.md
           generate_release_notes: true
-          body: |
-            ## Unsigned binaries
-
-            These binaries are **not code-signed or notarized**.
-
-            - **macOS**: Gatekeeper will refuse to open the raw binary. Either build from source on the Mac
-              (recommended, so you can sign `rdc.app` with your own identity via `scripts/macos/bundle-and-sign.sh`
-              and keep Screen Recording/Accessibility grants across upgrades), or clear the quarantine flag:
-              `xattr -d com.apple.quarantine rdc`. Note that TCC permissions granted to an unsigned/ad-hoc
-              binary are tied to its exact hash and are lost on every upgrade.
-            - **Windows**: SmartScreen will warn on first run. Choose "More info" → "Run anyway", or build from source.
-            - **Linux**: no signature checks apply; verify `SHA256SUMS`.
-
-            Verify downloads with `sha256sum -c SHA256SUMS`.

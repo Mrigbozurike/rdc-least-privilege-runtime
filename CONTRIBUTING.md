@@ -69,6 +69,7 @@ printf '%s\n' \
 - [ ] Say which platforms you actually ran on, and how (foreground, service, MCP).
 - [ ] If behaviour changed, update the relevant page in `docs/` and, if it affects agents,
       `skills/rdc/SKILL.md`.
+- [ ] Add a line under **Unreleased** in `CHANGELOG.md`; it becomes the release notes.
 - [ ] If you verified a platform that the README marks untested, update the status table.
 - [ ] Commits are descriptive; one logical change per commit where practical.
 
@@ -86,3 +87,12 @@ printf '%s\n' \
 
 By contributing you agree that your contributions are licensed under the AGPL-3.0-or-later, the
 same license as the project.
+
+## Releasing
+
+1. Move the **Unreleased** entries in `CHANGELOG.md` under a new `## <version> — <date>` heading
+   and bump `version` in `Cargo.toml`.
+2. Commit, push, wait for CI.
+3. `git tag -a v<version> -m "rdc <version>" && git push origin v<version>`. The release job
+   builds all platforms, and `scripts/release-notes.sh` turns the changelog section into the
+   release notes. It fails if the section is missing.

@@ -1,5 +1,13 @@
 # Changelog
 
+Entries under **Unreleased** go into the next release's notes; `scripts/release-notes.sh`
+builds the GitHub release body from the matching `## <version>` section.
+
+## Unreleased
+
+### Added
+- GitHub releases now carry the changelog section for the version as their notes.
+
 ## 0.2.0 — 2026-09-09
 
 ### Added
