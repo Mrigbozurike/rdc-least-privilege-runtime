@@ -23,6 +23,8 @@ button, and carries on.
 - **No passwords, tokens or certificates.** `rdc serve` listens only on the machine's Tailscale
   address and asks the local `tailscaled` who each caller is. You allow tailnet logins, device
   names or tags. Your tailnet is the security boundary.
+- **Scoped access and an audit trail.** Each allowed identity can be limited to `view`, `input`
+  or `clipboard`, and every request or rejection is written to a JSON-lines audit log.
 - **No shell.** rdc is a screen-and-input surface only. Use SSH for commands.
 - **One binary**, written in Rust. The same executable is the daemon, the CLI and the MCP server.
 
@@ -51,7 +53,10 @@ readiness, and start the daemon:
 # Linux: ~/.config/rdc/config.toml   macOS: ~/Library/Application Support/rdc/config.toml
 # Windows: %APPDATA%\rdc\config.toml
 [serve]
-allow = ["you@example.com"]      # tailnet logins, device names, or tags
+allow = [
+  "you@example.com",                        # full control: tailnet login, device name, or tag
+  { who = "monitor-bot", can = "view" },    # optional: limit an identity to screenshots
+]
 ```
 
 ```sh
@@ -107,16 +112,18 @@ agents how to use rdc well.
 | [Troubleshooting](docs/troubleshooting.md) | symptoms and fixes |
 | [Security](SECURITY.md) | threat model and vulnerability reporting |
 | [Contributing](CONTRIBUTING.md) | development, testing, pull requests |
+| [Changelog](CHANGELOG.md) | what changed in each release |
 
 ## How it stays safe
 
 `rdc serve` refuses to bind anything but a Tailscale address (or `127.0.0.1` with the explicit
 `--dev-loopback` testing flag, which disables auth). For each request it checks that the `Host`
 header names this machine, resolves the peer IP through `tailscaled`'s `whois`, and matches the
-login, node name or tags against your allowlist. Tagged devices are identified by their tags
-only, never by the login of whoever created them. An empty allowlist refuses to start. Everyone on the allowlist has full control of the desktop;
-there are no finer permissions yet. Read [SECURITY.md](SECURITY.md) before exposing a machine
-you care about.
+login, node name or tags against your grants. Tagged devices are identified by their tags
+only, never by the login of whoever created them. An empty allowlist refuses to start. Grants
+can be limited to `view`, `input` or `clipboard`, and everything is written to an audit log you
+can read with `rdc audit`. Read [SECURITY.md](SECURITY.md) before exposing a machine you care
+about.
 
 ## License
 

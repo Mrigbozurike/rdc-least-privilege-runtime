@@ -217,6 +217,46 @@ pub struct State {
     pub windows: Vec<Window>,
 }
 
+/// What an identity is allowed to do. `view` covers displays, windows and screenshots;
+/// `input` covers mouse, keyboard and window focus; `clipboard` covers reading and writing it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Capability {
+    View,
+    Input,
+    Clipboard,
+}
+
+impl Capability {
+    pub const ALL: [Capability; 3] = [Capability::View, Capability::Input, Capability::Clipboard];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Capability::View => "view",
+            Capability::Input => "input",
+            Capability::Clipboard => "clipboard",
+        }
+    }
+}
+
+impl std::fmt::Display for Capability {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
+impl std::str::FromStr for Capability {
+    type Err = String;
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "view" | "read" | "screen" => Ok(Capability::View),
+            "input" | "control" => Ok(Capability::Input),
+            "clipboard" | "clip" => Ok(Capability::Clipboard),
+            o => Err(format!("unknown capability {o:?} (expected view, input, clipboard or all)")),
+        }
+    }
+}
+
 /// Identity of the caller as seen by the daemon.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Identity {
@@ -225,6 +265,43 @@ pub struct Identity {
     #[serde(default)]
     pub tags: Vec<String>,
     pub ip: String,
+    /// Capabilities granted by the allowlist (empty until authorized).
+    #[serde(default)]
+    pub caps: Vec<Capability>,
+}
+
+impl Identity {
+    pub fn has(&self, cap: Capability) -> bool {
+        self.caps.contains(&cap)
+    }
+
+    /// Short human label: login, or node name for tagged devices.
+    pub fn label(&self) -> &str {
+        self.login.as_deref().unwrap_or(&self.node)
+    }
+}
+
+impl Action {
+    /// One-line description for logs and the audit trail. Never includes typed text.
+    pub fn describe(&self) -> String {
+        match self {
+            Action::Input(a) => match a {
+                InputAction::MouseMove { x, y } => format!("input.move {x},{y}"),
+                InputAction::Click { x, y, button, count } => format!("input.click {x},{y} {button:?} x{count}"),
+                InputAction::Button { button, down } => {
+                    format!("input.button {button:?} {}", if *down { "down" } else { "up" })
+                }
+                InputAction::Drag { from, to, button } => {
+                    format!("input.drag {},{} -> {},{} {button:?}", from.0, from.1, to.0, to.1)
+                }
+                InputAction::Scroll { at, dx, dy } => format!("input.scroll dx={dx} dy={dy} at={at:?}"),
+                InputAction::Type { text } => format!("input.type {} chars", text.chars().count()),
+                InputAction::Key { chord } => format!("input.key {chord}"),
+            },
+            Action::Focus(t) => format!("focus {t:?}"),
+            Action::ClipboardSet { text } => format!("clipboard.set {} chars", text.chars().count()),
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -237,6 +314,8 @@ pub enum RdcError {
     Permission(String),
     #[error("unauthorized: {0}")]
     Unauthorized(String),
+    #[error("forbidden: {0}")]
+    Forbidden(String),
     #[error("bad request: {0}")]
     BadRequest(String),
     #[error("{0}")]
@@ -251,6 +330,7 @@ impl RdcError {
             | Self::Unsupported(m)
             | Self::Permission(m)
             | Self::Unauthorized(m)
+            | Self::Forbidden(m)
             | Self::BadRequest(m)
             | Self::Backend(m) => m,
         }
@@ -262,6 +342,7 @@ impl RdcError {
             Self::Unsupported(_) => "unsupported",
             Self::Permission(_) => "permission",
             Self::Unauthorized(_) => "unauthorized",
+            Self::Forbidden(_) => "forbidden",
             Self::BadRequest(_) => "bad_request",
             Self::Backend(_) => "backend",
         }

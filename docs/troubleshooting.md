@@ -19,6 +19,7 @@ which one failed.
 | connection refused / timeout | daemon not running, wrong host, or you're not on the tailnet | `tailscale ping HOST`; check `rdc service status` on the target |
 | `403 … is not in the allowlist` | whois succeeded but you're not allowed | add your login/node/tag; `rdc -t HOST whoami` shows what the daemon sees once allowed, the 403 message shows it when not |
 | `403 … is not a Tailscale address` | request arrived from a non-tailnet IP | use the Tailscale hostname or 100.x address |
+| `403 forbidden: … may not use \`input\`` | your grant is limited to some capabilities | widen `can` in the grant on the daemon side; `rdc -t HOST whoami` shows your `caps` |
 | `403 loopback connections are not accepted` | you're on the same machine | use `--target local`, or start the daemon with `--dev-loopback` for testing |
 | `421 request addressed to unexpected host` | the URL uses a name the daemon doesn't recognise as itself | use the Tailscale MagicDNS name or IP, or add the name to `[serve].hosts` |
 | `400 point (…) is outside the desktop` | coordinates beyond the displays | check `rdc displays`; with MCP, take a fresh screenshot |
@@ -56,4 +57,5 @@ which one failed.
 - Daemon: `RDC_LOG=debug rdc serve …` (foreground); service logs are in `journalctl --user -u
   dev.rdc.daemon` (Linux) or `~/Library/Application Support/rdc/serve.log` (macOS).
 - Every request is logged with the resolved identity; rejections are logged at `warn`.
+- The audit log has one line per request or rejection: `rdc audit -n 100` on the daemon machine.
 - Client and MCP: `--log debug` or `RDC_LOG=debug`; goes to stderr, so it won't corrupt MCP stdio.

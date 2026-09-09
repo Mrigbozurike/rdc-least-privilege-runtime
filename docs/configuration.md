@@ -18,15 +18,29 @@ command line instead.
 port = 7770
 # Optional. Default: this machine's Tailscale IPv4. Must be a Tailscale address.
 # bind = "100.101.102.103"
-# Who may control this machine. Empty list = daemon refuses to start.
+
+# Who may control this machine, and how much. Empty = daemon refuses to start.
+# A plain string grants everything; an inline table limits it to some capabilities.
 allow = [
-  "you@example.com",   # a tailnet login (as shown by `tailscale whois`)
-  "studio-laptop",     # a node (device) name
-  "tag:ops",           # every node carrying this ACL tag
+  "you@example.com",                                        # full control
+  { who = "monitor-bot", can = "view" },                    # screenshots only
+  { who = ["tag:ops", "bob@example.com"], can = ["view", "clipboard"] },
 ]
+
+# The same thing as a block, if you prefer one grant per section.
+[[serve.grant]]
+who = "tag:family"
+can = "all"
+
 # Optional. Extra names clients may use in the URL besides this node's Tailscale IPs,
 # MagicDNS name and hostname (e.g. a CNAME you point at it).
 # hosts = ["desk.internal.example"]
+
+[serve.audit]
+enabled = true                 # default
+# path = "/var/log/rdc/audit.jsonl"   # default: rdc/audit.jsonl in the platform state dir
+max_size_mb = 50               # rotate above this size
+keep = 5                       # keep audit.jsonl.1 … .5
 
 # Names you can pass to `--target` on the client side.
 [targets.studio-mac]
@@ -42,11 +56,29 @@ url = "http://100.64.10.20:7770"
 |---|---|---|
 | `port` | `7770` | TCP port for the daemon |
 | `bind` | Tailscale IPv4 | Address to listen on. Anything that isn't a Tailscale address (100.64.0.0/10 or fd7a:115c:a1e0::/48) is rejected at startup. |
-| `allow` | `[]` | Allowlist entries, see below |
+| `allow` | `[]` | Grants: plain identity strings (full control) or `{ who, can }` tables, see below |
+| `grant` | `[]` | `[[serve.grant]]` blocks, same shape as the table form of `allow` |
+| `audit` | enabled | Audit log settings, see below |
 | `hosts` | `[]` | Extra accepted `Host` header names; the node's own IPs, MagicDNS name and hostname are always accepted |
 
-Command-line equivalents: `rdc serve --port 7771 --bind 100.x.y.z --allow a@b --allow tag:ops`.
-`--allow` flags are **added** to the config list.
+Command-line equivalents: `rdc serve --port 7771 --bind 100.x.y.z --allow a@b --allow tag:ops=view`.
+`--allow` flags are **added** to the config grants; `who=cap,cap` limits capabilities, a bare
+identity grants all.
+
+### Grants and capabilities
+
+Each grant names one or more identities (`who`) and what they may do (`can`):
+
+| Capability | Allows |
+|---|---|
+| `view` | `displays`, `windows`, `screenshot`, `whoami` |
+| `input` | mouse, keyboard, `focus` |
+| `clipboard` | reading and writing the clipboard |
+| `all` | everything (the default when `can` is omitted, and what a plain string grants) |
+
+`who` and `can` each take one value or a list. When several grants match the same caller, their
+capabilities are combined. A caller that lacks a capability gets `403 forbidden` with a message
+naming the missing one, and the attempt is written to the audit log.
 
 ### Allowlist rules
 
@@ -63,6 +95,23 @@ case-insensitively:
 
 Results are cached for 30 seconds per IP. Loopback connections are always refused unless the
 daemon was started with `--dev-loopback`.
+
+### Audit log
+
+Every authorized request and every rejection is appended as one JSON object per line:
+
+```json
+{"ts":"2026-09-09T16:08:55.979Z","peer":"100.64.0.7","login":"alice@example.com","node":"laptop",
+ "method":"POST","path":"/v1/act","action":"input.click 100,100 Left x1","outcome":"denied",
+ "status":403,"detail":"alice@example.com may not use `input` on this machine","ms":0}
+```
+
+`outcome` is `ok`, `denied` (host, identity or capability) or `error`. `action` describes the
+request without its payload: typed text is recorded only as a character count. The file is
+created mode 0600 and rotated by size. Read it with `rdc audit` (`-n`, `--json`, `--path`).
+
+Default location: `~/.local/state/rdc/audit.jsonl` (Linux), `~/Library/Application
+Support/rdc/audit.jsonl` (macOS), `%LOCALAPPDATA%\rdc\audit.jsonl` (Windows).
 
 ### Host check
 

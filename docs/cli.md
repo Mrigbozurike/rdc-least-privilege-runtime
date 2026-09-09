@@ -18,7 +18,7 @@ empty allowlist.
 
 | Flag | Meaning |
 |---|---|
-| `--allow ENTRY` | login, node name or tag to permit (repeatable, added to config) |
+| `--allow WHO[=CAPS]` | identity to permit, optionally limited: `--allow tag:ops=view,clipboard` (repeatable, added to config) |
 | `--port N` | listen port |
 | `--bind IP` | listen address (must be a Tailscale address) |
 | `--dev-loopback` | bind 127.0.0.1 and skip authentication for loopback. **Testing only.** |
@@ -30,11 +30,17 @@ Manage a per-user background service that runs `rdc serve`: a LaunchAgent on mac
 runs the binary at the path `rdc service install` was invoked from, so install from the final
 location (on macOS, from inside `rdc.app`).
 
+### `rdc audit [-n N] [--json] [--path FILE]`
+
+Show the last N entries (default 50) of this machine's audit log as a table, or as raw JSON
+lines with `--json`. The file is `[serve.audit].path` or the platform default. See
+[Configuration](configuration.md#audit-log).
+
 ### `rdc doctor [--request-permissions]`
 
 Prints what rdc can see on this machine: platform and session type, `tailscaled` connectivity and
 this node's identity, permission state, displays with geometry, a timed test screenshot, window
-count, and whether input initialises. Exits non-zero if something needed for serving is missing.
+count, whether input initialises, the configured grants, and the audit log path. Exits non-zero if something needed for serving is missing.
 `--request-permissions` (macOS) triggers the Screen Recording and Accessibility prompts.
 
 ## Client side

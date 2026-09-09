@@ -44,6 +44,7 @@ impl RemoteDesktop {
                 "unsupported" => RdcError::Unsupported(e.message),
                 "permission" => RdcError::Permission(e.message),
                 "unauthorized" => RdcError::Unauthorized(e.message),
+                "forbidden" => RdcError::Forbidden(e.message),
                 "bad_request" => RdcError::BadRequest(e.message),
                 _ => RdcError::Backend(e.message),
             });

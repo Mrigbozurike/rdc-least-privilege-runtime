@@ -41,7 +41,8 @@ enum Cmd {
         /// TCP port to listen on (default 7770 or `[serve].port` in config).
         #[arg(long)]
         port: Option<u16>,
-        /// Tailnet login, node name or tag permitted to connect (repeatable; adds to config).
+        /// Identity permitted to connect, optionally with capabilities: `alice@example.com`,
+        /// `tag:ops=view`, `studio-laptop=view,clipboard`. Repeatable; adds to config.
         #[arg(long = "allow")]
         allow: Vec<String>,
         /// Bind 127.0.0.1 and skip authentication for loopback. Testing only.
@@ -64,6 +65,18 @@ enum Cmd {
     Service {
         #[arg(value_enum)]
         op: ServiceOp,
+    },
+    /// Show the most recent entries of this machine's audit log.
+    Audit {
+        /// Number of entries to show.
+        #[arg(short = 'n', long, default_value_t = 50)]
+        lines: usize,
+        /// Print raw JSON lines instead of a table.
+        #[arg(long)]
+        json: bool,
+        /// Audit file (default: `[serve.audit].path` or the platform state dir).
+        #[arg(long)]
+        path: Option<PathBuf>,
     },
     /// List displays.
     Displays,
@@ -163,8 +176,10 @@ async fn main() -> Result<()> {
         Cmd::Serve { bind, port, allow, dev_loopback } => {
             let desktop: Arc<dyn Desktop> = Arc::new(LocalDesktop::new()?);
             let ts = tailscale::Tailscale::detect();
-            let mut allow_all = cfg.serve.allow.clone();
-            allow_all.extend(allow);
+            let mut grants = cfg.serve.grants()?;
+            for a in &allow {
+                grants.push(config::parse_allow_flag(a)?);
+            }
             let bind = bind.or_else(|| cfg.serve.bind.as_deref().and_then(|s| s.parse().ok()));
             server::serve(
                 desktop,
@@ -172,7 +187,8 @@ async fn main() -> Result<()> {
                 server::ServeOpts {
                     bind,
                     port: port.unwrap_or(cfg.serve.port),
-                    allow: allow_all,
+                    grants,
+                    audit: cfg.serve.audit.clone(),
                     hosts: cfg.serve.hosts.clone(),
                     dev_loopback,
                 },
@@ -187,7 +203,7 @@ async fn main() -> Result<()> {
             mcp::run(desktop, cli.target.clone(), max).await
         }
         Cmd::Service { op } => {
-            if matches!(op, ServiceOp::Install) && cfg.serve.allow.is_empty() {
+            if matches!(op, ServiceOp::Install) && cfg.serve.grants()?.is_empty() {
                 anyhow::bail!(
                     "[serve].allow in {} is empty; the service would start `rdc serve` with nobody allowed and exit. \
                      Add at least one tailnet login, node name or tag there first.",
@@ -199,6 +215,27 @@ async fn main() -> Result<()> {
                 ServiceOp::Uninstall => service::Op::Uninstall,
                 ServiceOp::Status => service::Op::Status,
             })
+        }
+        Cmd::Audit { lines, json, path } => {
+            let path = path.unwrap_or_else(|| cfg.serve.audit.resolved_path());
+            let entries = server::audit::tail(&path, lines).with_context(|| format!("reading {}", path.display()))?;
+            if json {
+                for e in &entries {
+                    println!("{}", serde_json::to_string(e)?);
+                }
+            } else {
+                println!("{:<24} {:<28} {:<7} {:<4} action", "time", "who", "outcome", "code");
+                for e in &entries {
+                    let who = e.login.clone().or(e.node.clone()).unwrap_or_else(|| e.peer.clone());
+                    let what = e.action.clone().unwrap_or_else(|| format!("{} {}", e.method, e.path));
+                    let detail = e.detail.as_deref().map(|d| format!("  ({d})")).unwrap_or_default();
+                    println!("{:<24} {:<28} {:<7} {:<4} {what}{detail}", e.ts, who, e.outcome, e.status);
+                }
+                if entries.is_empty() {
+                    eprintln!("no entries in {}", path.display());
+                }
+            }
+            Ok(())
         }
         Cmd::Doctor { request_permissions } => {
             let ok = doctor::run(request_permissions).await?;
@@ -271,7 +308,9 @@ async fn client(cfg: &config::Config, target: &str, cmd: Cmd) -> Result<()> {
             Some(r) => print_json(&r.whoami().await?),
             None => anyhow::bail!("whoami needs a remote --target"),
         },
-        Cmd::Serve { .. } | Cmd::Mcp { .. } | Cmd::Doctor { .. } | Cmd::Service { .. } => unreachable!(),
+        Cmd::Serve { .. } | Cmd::Mcp { .. } | Cmd::Doctor { .. } | Cmd::Service { .. } | Cmd::Audit { .. } => {
+            unreachable!()
+        }
     }
 }
 

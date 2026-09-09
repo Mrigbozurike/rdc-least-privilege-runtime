@@ -20,8 +20,11 @@ TLS: the tailnet's WireGuard layer provides encryption and the identity.
 
 **Consequences.**
 
-- Anyone whose login, node or tag matches the allowlist has unrestricted desktop control. `"*"`
-  allows the entire tailnet. Tags match every node carrying them.
+- Anyone whose login, node or tag matches a grant gets that grant's capabilities: `view`
+  (screenshots, windows), `input` (mouse, keyboard, focus), `clipboard`, or `all`. A plain
+  identity string grants all three. `"*"` allows the entire tailnet. Tags match every node
+  carrying them. Tagged devices are identified by their tags and node name only; the login of
+  the user who created them carries no authority.
 - If an allowed identity is compromised (stolen device, leaked auth key, shared tailnet), the
   attacker has your desktop. Tailscale ACLs are your second layer: restrict which nodes may reach
   the rdc port at all.
@@ -34,9 +37,12 @@ TLS: the tailnet's WireGuard layer provides encryption and the identity.
 - The macOS build needs Screen Recording and Accessibility permissions. Grant them only to a
   signed bundle you built or verified; see `scripts/macos`.
 
-**Not yet implemented** (tracked as issues): an append-only audit log, per-identity capability
-scoping (view-only vs. input), rate limiting, and a pause when a human is physically using the
-input devices.
+**Audit.** Every request and rejection is appended to a JSON-lines audit log (mode 0600, size
+rotated) with the caller's identity, an action summary, the outcome and timing. Typed text is
+never logged, only its length. Read it with `rdc audit`.
+
+**Not yet implemented** (tracked as issues): rate limiting, and a pause when a human is
+physically using the input devices.
 
 ## Reporting a vulnerability
 

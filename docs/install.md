@@ -70,5 +70,6 @@ Arch: `pacman -S clang pkgconf libxcb libxrandr dbus pipewire wayland libglvnd l
 | config | `~/.config/rdc/config.toml` | `~/Library/Application Support/rdc/config.toml` | `%APPDATA%\rdc\config.toml` |
 | service | `~/.config/systemd/user/dev.rdc.daemon.service` | `~/Library/LaunchAgents/dev.rdc.daemon.plist` | not yet |
 | daemon log | `journalctl --user -u dev.rdc.daemon` | `~/Library/Application Support/rdc/serve.log` | stdout |
+| audit log | `~/.local/state/rdc/audit.jsonl` | `~/Library/Application Support/rdc/audit.jsonl` | `%LOCALAPPDATA%\rdc\audit.jsonl` |
 
 Next: [Configuration](configuration.md), then the setup guide for your target platform.

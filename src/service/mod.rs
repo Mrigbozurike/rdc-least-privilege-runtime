@@ -30,7 +30,7 @@ pub fn service_binary() -> Result<PathBuf> {
 
 #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn log_dir() -> PathBuf {
-    dirs::state_dir().or_else(dirs::data_local_dir).unwrap_or_else(|| PathBuf::from(".")).join("rdc")
+    crate::config::state_dir()
 }
 
 pub fn run(op: Op) -> Result<()> {

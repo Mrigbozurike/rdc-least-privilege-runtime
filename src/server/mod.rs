@@ -1,8 +1,10 @@
 //! The daemon: axum on the Tailscale IP, every request identified via whois.
 
+pub mod audit;
 mod auth;
 mod routes;
 
+use crate::config::{AuditConfig, ResolvedGrant};
 use crate::desktop::Desktop;
 use crate::tailscale::Tailscale;
 use anyhow::{Context, Result};
@@ -15,12 +17,14 @@ pub use auth::Allowlist;
 pub struct AppState {
     pub desktop: Arc<dyn Desktop>,
     pub auth: Arc<auth::Auth>,
+    pub audit: Arc<audit::Audit>,
 }
 
 pub struct ServeOpts {
     pub bind: Option<IpAddr>,
     pub port: u16,
-    pub allow: Vec<String>,
+    pub grants: Vec<ResolvedGrant>,
+    pub audit: AuditConfig,
     /// Extra `Host` names to accept besides this node's own addresses and names.
     pub hosts: Vec<String>,
     pub dev_loopback: bool,
@@ -54,8 +58,16 @@ pub async fn serve(desktop: Arc<dyn Desktop>, ts: Tailscale, opts: ServeOpts) ->
             "{bind_ip} is not a Tailscale address; refusing to expose the desktop on it (use --dev-loopback for 127.0.0.1)"
         );
     }
-    if opts.allow.is_empty() && !opts.dev_loopback {
+    if opts.grants.is_empty() && !opts.dev_loopback {
         anyhow::bail!("allowlist is empty: set [serve].allow in config or pass --allow; nobody could connect");
+    }
+    for g in &opts.grants {
+        tracing::info!("allow {}", g.describe());
+    }
+    let audit = audit::Audit::open(&opts.audit).context("opening the audit log")?;
+    match audit.path() {
+        Some(p) => tracing::info!("audit log: {}", p.display()),
+        None => tracing::warn!("audit log disabled by config"),
     }
     let addr = SocketAddr::new(bind_ip, opts.port);
     // Names a legitimate client would put in the URL. Anything else in the Host header means the
@@ -70,11 +82,11 @@ pub async fn serve(desktop: Arc<dyn Desktop>, ts: Tailscale, opts: ServeOpts) ->
         hosts.extend(["localhost".to_string(), "127.0.0.1".to_string(), "::1".to_string()]);
     }
     tracing::debug!(?hosts, "accepted Host names");
-    let auth = auth::Auth::new(ts, Allowlist::new(opts.allow), auth::HostAllow::new(hosts), opts.dev_loopback);
+    let auth = auth::Auth::new(ts, Allowlist::new(opts.grants), auth::HostAllow::new(hosts), opts.dev_loopback);
     if opts.dev_loopback {
         tracing::warn!("--dev-loopback: requests from 127.0.0.1 are NOT authenticated");
     }
-    let state = AppState { desktop, auth: Arc::new(auth) };
+    let state = AppState { desktop, auth: Arc::new(auth), audit: Arc::new(audit) };
     let app = routes::router(state);
     let listener = tokio::net::TcpListener::bind(addr).await.with_context(|| format!("bind {addr}"))?;
     tracing::info!("rdc serving on http://{addr}");

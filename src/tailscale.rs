@@ -180,7 +180,7 @@ impl Tailscale {
 /// any server tagged by an allowed user inherit that user's desktop access, so drop it.
 fn identity(login: Option<String>, name: &str, computed: &str, tags: Vec<String>, ip: IpAddr) -> Identity {
     let login = if tags.is_empty() { login.filter(|s| !s.is_empty()) } else { None };
-    Identity { login, node: node_short(name, computed), tags, ip: ip.to_string() }
+    Identity { login, node: node_short(name, computed), tags, ip: ip.to_string(), caps: vec![] }
 }
 
 fn ts(e: tailscale_localapi::Error) -> RdcError {

@@ -76,7 +76,14 @@ live in `src/proto.rs` and are shared by both sides.
    loopback TCP + proof token for the macOS GUI variants, named pipe on Windows, or the
    `tailscale whois --json` CLI as fallback). The response gives login, node name and tags.
 5. Tagged nodes have their creator's login stripped; they are identified by tags and node name
-   only. The identity is matched against the allowlist and cached for 30 s.
+   only. The identity is matched against the grants and cached for 30 s; the union of the
+   matching grants' capabilities (`view`, `input`, `clipboard`) travels with the identity.
+6. Each route requires one capability: state and screenshot need `view`, `/act` needs `input`
+   (or `clipboard` for clipboard writes), `/clipboard` needs `clipboard`. Missing capability →
+   `403 forbidden`.
+7. Every request and rejection is appended to the audit log (`src/server/audit.rs`) as a JSON
+   line with identity, action summary, outcome and duration. Rejections are recorded by the
+   middleware; authorized requests by the route handlers, after they know the outcome.
 
 Input requests are validated before they touch the desktop: coordinates must lie inside the
 union of the displays, scroll magnitudes are capped at 100 steps, and unsupported keys are

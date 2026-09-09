@@ -171,5 +171,36 @@ pub async fn run(request_permissions: bool) -> anyhow::Result<bool> {
         Err(e) => line(None, "clipboard", format!("{e}")),
     }
     line(None, "config", crate::config::path().display().to_string());
+    match crate::config::load() {
+        Ok(cfg) => {
+            match cfg.serve.grants() {
+                Ok(gs) if gs.is_empty() => {
+                    line(None, "allow", "empty — `rdc serve` will refuse to start until [serve].allow is set")
+                }
+                Ok(gs) => {
+                    for g in gs {
+                        line(Some(true), "allow", g.describe());
+                    }
+                }
+                Err(e) => {
+                    healthy = false;
+                    line(Some(false), "allow", e.to_string());
+                }
+            }
+            line(
+                None,
+                "audit",
+                if cfg.serve.audit.enabled {
+                    cfg.serve.audit.resolved_path().display().to_string()
+                } else {
+                    "disabled".into()
+                },
+            );
+        }
+        Err(e) => {
+            healthy = false;
+            line(Some(false), "config", e.to_string());
+        }
+    }
     Ok(healthy)
 }

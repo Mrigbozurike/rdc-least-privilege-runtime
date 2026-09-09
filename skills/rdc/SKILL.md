@@ -6,7 +6,8 @@ description: Control another machine's desktop (screenshot, click, type, key, fo
 # rdc — Remote Desktop Control for agents
 
 Full documentation lives in the repo's `docs/` folder (`docs/mcp.md`, `docs/cli.md`,
-`docs/troubleshooting.md`); this skill is the short version.
+`docs/troubleshooting.md`); this skill is the short version. Every action you take is written
+to the target machine's audit log with your tailnet identity.
 
 `rdc` is one binary with two roles. `rdc serve` runs on the machine being controlled and
 listens only on its Tailscale IP; every request is identified with tailscaled `whois` and
@@ -76,6 +77,7 @@ Config lives at `~/.config/rdc/config.toml` (Linux) or
 [serve]
 port = 7770
 allow = ["you@example.com", "tag:family"]   # tailnet logins, node names, tags, or "*"
+# limit an identity: { who = "monitor-bot", can = "view" }   (view | input | clipboard | all)
 
 [targets.studio-mac]
 url = "http://host.tailnet.ts.net:7770"
@@ -110,6 +112,7 @@ input); X11 via xcap.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `403 ... not in the allowlist` | your tailnet login/node not allowed (tagged devices match only by tag or node name) | add it to `[serve].allow`, restart daemon |
+| `403 forbidden: X may not use \`input\`` | your grant is limited (e.g. `can = "view"`) | ask the machine's owner to widen the grant; screenshots still work |
 | `421 ... unexpected host` | URL host isn't a name the daemon knows for itself | use the Tailscale name/IP or add to `[serve].hosts` |
 | `400 ... outside the desktop` / `scroll steps` | out-of-range coordinates or scroll | take a new screenshot; scroll ≤100 steps |
 | `not a Tailscale address` / connection refused | connecting from outside the tailnet, or daemon bound elsewhere | use the Tailscale hostname; check `rdc doctor` on the target |

@@ -1,7 +1,8 @@
 //! Identify the peer behind each connection with tailscaled whois and check the allowlist.
 
 use super::{AppState, is_tailscale_ip};
-use crate::proto::{ApiError, Identity, RdcError};
+use crate::config::ResolvedGrant;
+use crate::proto::{ApiError, Capability, Identity, RdcError};
 use crate::tailscale::Tailscale;
 use axum::{
     body::Body,
@@ -10,30 +11,63 @@ use axum::{
     middleware::Next,
     response::{IntoResponse, Response},
 };
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::net::{IpAddr, SocketAddr};
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
 #[derive(Debug, Clone)]
 pub struct Allowlist {
-    entries: Vec<String>,
+    grants: Vec<ResolvedGrant>,
 }
 
 impl Allowlist {
-    pub fn new(entries: Vec<String>) -> Self {
-        Self { entries: entries.into_iter().map(|e| e.trim().to_lowercase()).filter(|e| !e.is_empty()).collect() }
+    pub fn new(grants: Vec<ResolvedGrant>) -> Self {
+        let grants = grants
+            .into_iter()
+            .map(|g| ResolvedGrant {
+                who: g.who.into_iter().map(|w| w.trim().to_lowercase()).filter(|w| !w.is_empty()).collect(),
+                caps: g.caps,
+            })
+            .filter(|g| !g.who.is_empty())
+            .collect();
+        Self { grants }
     }
 
-    pub fn permits(&self, id: &Identity) -> bool {
+    /// Everyone listed gets full control.
+    #[cfg(test)]
+    pub fn simple(entries: Vec<String>) -> Self {
+        Self::new(entries.into_iter().map(|e| ResolvedGrant::full(vec![e])).collect())
+    }
+
+    /// The union of capabilities from every grant that matches this identity, or `None`.
+    pub fn permits(&self, id: &Identity) -> Option<BTreeSet<Capability>> {
         let node = id.node.to_lowercase();
         let login = id.login.as_deref().map(str::to_lowercase);
-        self.entries.iter().any(|e| {
-            e == "*"
-                || login.as_deref() == Some(e.as_str())
-                || node == *e
-                || id.tags.iter().any(|t| t.to_lowercase() == *e)
-        })
+        let mut caps = BTreeSet::new();
+        let mut matched = false;
+        for g in &self.grants {
+            let hit = g.who.iter().any(|e| {
+                e == "*"
+                    || login.as_deref() == Some(e.as_str())
+                    || node == *e
+                    || id.tags.iter().any(|t| t.to_lowercase() == *e)
+            });
+            if hit {
+                matched = true;
+                caps.extend(g.caps.iter().copied());
+            }
+        }
+        matched.then_some(caps)
+    }
+}
+
+/// Reject a request whose identity lacks `cap`.
+pub fn require(id: &Identity, cap: Capability) -> Result<(), RdcError> {
+    if id.has(cap) {
+        Ok(())
+    } else {
+        Err(RdcError::Forbidden(format!("{} may not use `{cap}` on this machine", id.label())))
     }
 }
 
@@ -101,6 +135,7 @@ impl Auth {
                     node: "localhost".into(),
                     tags: vec![],
                     ip: ip.to_string(),
+                    caps: Capability::ALL.to_vec(),
                 });
             }
             return Err(RdcError::Unauthorized(
@@ -121,18 +156,20 @@ impl Auth {
     }
 
     pub async fn authorize(&self, ip: IpAddr) -> Result<Identity, RdcError> {
-        let id = self.identify(ip).await?;
+        let mut id = self.identify(ip).await?;
         if self.dev_loopback && ip.is_loopback() {
             return Ok(id);
         }
-        if self.allow.permits(&id) {
-            Ok(id)
-        } else {
-            Err(RdcError::Unauthorized(format!(
+        match self.allow.permits(&id) {
+            Some(caps) => {
+                id.caps = caps.into_iter().collect();
+                Ok(id)
+            }
+            None => Err(RdcError::Unauthorized(format!(
                 "{} ({}) is not in the allowlist",
                 id.login.as_deref().unwrap_or("no-login"),
                 id.node
-            )))
+            ))),
         }
     }
 }
@@ -142,7 +179,7 @@ pub fn error_response(e: &RdcError) -> Response {
         RdcError::NotFound(_) => StatusCode::NOT_FOUND,
         RdcError::Unsupported(_) => StatusCode::NOT_IMPLEMENTED,
         RdcError::Permission(_) => StatusCode::SERVICE_UNAVAILABLE,
-        RdcError::Unauthorized(_) => StatusCode::FORBIDDEN,
+        RdcError::Unauthorized(_) | RdcError::Forbidden(_) => StatusCode::FORBIDDEN,
         RdcError::BadRequest(_) => StatusCode::BAD_REQUEST,
         RdcError::Backend(_) => StatusCode::INTERNAL_SERVER_ERROR,
     };
@@ -162,8 +199,11 @@ pub async fn middleware(
         .and_then(|v| v.to_str().ok())
         .map(str::to_owned)
         .or_else(|| req.uri().authority().map(|a| a.to_string()));
+    let (method, path) = (req.method().to_string(), req.uri().path().to_string());
+    let peer_ip = peer.ip().to_string();
     if let Err(e) = state.auth.check_host(host.as_deref()) {
-        tracing::warn!(peer = %peer.ip(), error = %e, "rejected");
+        tracing::warn!(peer = %peer_ip, error = %e, "rejected");
+        state.audit.record(super::audit::Entry::new(&peer_ip, None, &method, &path).denied(421, e.message()));
         return (
             StatusCode::MISDIRECTED_REQUEST,
             axum::Json(ApiError { code: e.code().into(), message: e.message().to_string() }),
@@ -172,12 +212,13 @@ pub async fn middleware(
     }
     match state.auth.authorize(peer.ip()).await {
         Ok(id) => {
-            tracing::info!(peer = %peer.ip(), who = id.login.as_deref().unwrap_or(&id.node), method = %req.method(), path = %req.uri().path(), "request");
+            tracing::info!(peer = %peer_ip, who = id.label(), method = %method, path = %path, "request");
             req.extensions_mut().insert(id);
             next.run(req).await
         }
         Err(e) => {
-            tracing::warn!(peer = %peer.ip(), error = %e, "rejected");
+            tracing::warn!(peer = %peer_ip, error = %e, "rejected");
+            state.audit.record(super::audit::Entry::new(&peer_ip, None, &method, &path).denied(403, e.message()));
             error_response(&e)
         }
     }
@@ -193,21 +234,42 @@ mod tests {
             node: node.into(),
             tags: tags.iter().map(|s| s.to_string()).collect(),
             ip: "100.1.1.1".into(),
+            caps: vec![],
         }
     }
 
     #[test]
     fn allowlist_matches_login_node_tag_and_star() {
-        let a = Allowlist::new(vec!["Alice@github".into(), "studio-mac".into(), "tag:family".into()]);
-        assert!(a.permits(&id(Some("alice@github"), "x", &[])));
-        assert!(a.permits(&id(None, "Studio-Mac", &[])));
-        assert!(a.permits(&id(None, "gaming-pc", &["tag:family"])));
-        assert!(!a.permits(&id(Some("someone@github"), "other", &["tag:server"])));
-        assert!(Allowlist::new(vec!["*".into()]).permits(&id(None, "anyone", &[])));
-        assert!(!Allowlist::new(vec![]).permits(&id(Some("a@b"), "n", &[])));
+        let a = Allowlist::simple(vec!["Alice@github".into(), "studio-mac".into(), "tag:family".into()]);
+        assert!(a.permits(&id(Some("alice@github"), "x", &[])).is_some());
+        assert!(a.permits(&id(None, "Studio-Mac", &[])).is_some());
+        assert!(a.permits(&id(None, "gaming-pc", &["tag:family"])).is_some());
+        assert!(a.permits(&id(Some("someone@github"), "other", &["tag:server"])).is_none());
+        assert!(Allowlist::simple(vec!["*".into()]).permits(&id(None, "anyone", &[])).is_some());
+        assert!(Allowlist::simple(vec![]).permits(&id(Some("a@b"), "n", &[])).is_none());
         // A tagged node never carries a login (see tailscale::identity), so only its tag or
         // node name can match.
-        assert!(!a.permits(&id(None, "alice-server", &["tag:server"])));
+        assert!(a.permits(&id(None, "alice-server", &["tag:server"])).is_none());
+    }
+
+    #[test]
+    fn capabilities_union_across_grants() {
+        let view: BTreeSet<Capability> = [Capability::View].into_iter().collect();
+        let clip: BTreeSet<Capability> = [Capability::Clipboard].into_iter().collect();
+        let a = Allowlist::new(vec![
+            ResolvedGrant { who: vec!["monitor-bot".into()], caps: view.clone() },
+            ResolvedGrant { who: vec!["tag:ops".into()], caps: clip.clone() },
+            ResolvedGrant::full(vec!["alice@example.com".into()]),
+        ]);
+        assert_eq!(a.permits(&id(None, "monitor-bot", &[])), Some(view.clone()));
+        // Matches two grants: capabilities are unioned.
+        let both = a.permits(&id(None, "monitor-bot", &["tag:ops"])).unwrap();
+        assert_eq!(both, view.union(&clip).copied().collect());
+        assert_eq!(a.permits(&id(Some("alice@example.com"), "l", &[])).unwrap().len(), 3);
+        let mut who = id(None, "monitor-bot", &[]);
+        who.caps = a.permits(&who).unwrap().into_iter().collect();
+        assert!(require(&who, Capability::View).is_ok());
+        assert!(matches!(require(&who, Capability::Input), Err(RdcError::Forbidden(_))));
     }
 
     #[test]
