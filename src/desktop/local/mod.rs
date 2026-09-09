@@ -42,7 +42,10 @@ impl LocalDesktop {
         #[cfg(target_os = "macos")]
         v.push("windows: xcap list + AppKit/AX focus".into());
         #[cfg(target_os = "windows")]
-        v.push("windows: xcap list + SetForegroundWindow".into());
+        v.push(format!(
+            "windows: xcap list + SetForegroundWindow; virtual desktop {:?}",
+            win_windows::virtual_screen()
+        ));
         v.push("input: enigo".into());
         v
     }

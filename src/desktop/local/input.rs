@@ -4,7 +4,9 @@
 
 use crate::keys::{Chord, KeyName, Modifier, parse_chord};
 use crate::proto::*;
-use enigo::{Axis, Button, Coordinate, Direction, Enigo, Key, Keyboard, Mouse, Settings};
+#[cfg(not(target_os = "windows"))]
+use enigo::Coordinate;
+use enigo::{Axis, Button, Direction, Enigo, Key, Keyboard, Mouse, Settings};
 use std::sync::mpsc;
 use std::thread;
 use std::time::Duration;
@@ -234,6 +236,13 @@ fn union_bounds(displays: &[Display]) -> Rect {
 
 fn move_abs(e: &mut Enigo, m: &CoordMap, x: i64, y: i64) -> Result<()> {
     let (mx, my) = m.map(x, y)?;
+    #[cfg(target_os = "windows")]
+    {
+        let _ = e;
+        // enigo normalises against the primary monitor only; use the whole virtual desktop.
+        return super::win_windows::move_absolute(mx, my);
+    }
+    #[cfg(not(target_os = "windows"))]
     e.move_mouse(mx, my, Coordinate::Abs).map_err(ie)
 }
 

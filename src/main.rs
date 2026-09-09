@@ -27,6 +27,9 @@ struct Cli {
     /// Log filter (tracing syntax), e.g. `debug` or `rdc=debug,hyper=warn`.
     #[arg(long, global = true, default_value = "info", env = "RDC_LOG")]
     log: String,
+    /// Append logs to this file instead of stderr (used by the Windows scheduled task).
+    #[arg(long, global = true, env = "RDC_LOG_FILE")]
+    log_file: Option<PathBuf>,
     #[command(subcommand)]
     cmd: Cmd,
 }
@@ -163,13 +166,26 @@ enum ServiceOp {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_new(format!("{},enigo=error", cli.log))
-                .unwrap_or_else(|_| "info,enigo=error".into()),
-        )
-        .with_writer(std::io::stderr)
-        .init();
+    let filter = tracing_subscriber::EnvFilter::try_new(format!("{},enigo=error", cli.log))
+        .unwrap_or_else(|_| "info,enigo=error".into());
+    match &cli.log_file {
+        Some(p) => {
+            if let Some(dir) = p.parent() {
+                std::fs::create_dir_all(dir).ok();
+            }
+            let file = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(p)
+                .with_context(|| format!("opening log file {}", p.display()))?;
+            tracing_subscriber::fmt()
+                .with_env_filter(filter)
+                .with_ansi(false)
+                .with_writer(std::sync::Mutex::new(file))
+                .init();
+        }
+        None => tracing_subscriber::fmt().with_env_filter(filter).with_writer(std::io::stderr).init(),
+    }
     let cfg = config::load()?;
 
     match cli.cmd {
