@@ -1,48 +1,88 @@
-# Contributing
+# Contributing to rdc
 
-Thanks for looking at rdc. Small, focused pull requests are easiest to review.
+Thanks for your interest. Bug reports with `rdc doctor` output, platform test reports, and small
+focused pull requests are all welcome.
 
-## Development
+## Before you start
+
+- For anything beyond a small fix, open an issue first so we can agree on the approach. The
+  [architecture doc](docs/architecture.md) explains how the pieces fit.
+- Security problems: do **not** open a public issue. See [SECURITY.md](SECURITY.md).
+- Platform reports are contributions too. If you run rdc on a platform marked *untested* in the
+  README, tell us what happened, good or bad.
+
+## Development setup
 
 ```sh
+git clone https://github.com/bscott/rdc && cd rdc
 cargo build --release
 cargo test
 cargo clippy --all-targets -- -D warnings
 cargo fmt --all
-./target/release/rdc serve --dev-loopback     # unauthenticated 127.0.0.1, local testing only
-./target/release/rdc -t http://127.0.0.1:7770 shot
 ```
 
-CI runs rustfmt, clippy with warnings as errors, the tests and a release build on Linux, macOS
-and Windows. Please make sure `cargo fmt` and `cargo clippy --all-targets -- -D warnings` are
-clean before pushing.
+Build dependencies per OS are in [docs/install.md](docs/install.md#build-dependencies). CI runs
+the same four commands on Linux, macOS and Windows with warnings as errors, so run them before
+pushing.
 
-Linux needs the development packages for xcb, xrandr, dbus, pipewire, wayland, EGL and
-xkbcommon plus `libclang` (see the `apt-get` step in `.github/workflows/ci.yml` for the exact
-Debian names). macOS and Windows need only the Rust toolchain.
+### Trying changes locally without a second machine
 
-## Layout
+```sh
+./target/release/rdc serve --dev-loopback              # unauthenticated 127.0.0.1, testing only
+./target/release/rdc -t http://127.0.0.1:7770 shot
+./target/release/rdc -t http://127.0.0.1:7770 click 400 300
+```
 
-- `src/proto.rs` — wire and domain types shared by daemon, client, CLI and MCP.
-- `src/desktop/` — the `Desktop` trait; `local/` (xcap, enigo, arboard, per-platform window
-  code) and `remote.rs` (HTTP client).
-- `src/server/` — axum daemon, Tailscale whois auth middleware, routes.
-- `src/tailscale.rs` — LocalAPI discovery per platform and the CLI fallback.
-- `src/mcp.rs` and `src/view.rs` — MCP tools and image-pixel to desktop-point mapping.
-- `src/service/` — LaunchAgent / systemd user unit installers.
-- `scripts/macos/` — bundle and sign `rdc.app`.
-- `skills/rdc/` — the agent skill describing how to use rdc.
+Or skip the daemon entirely with `--target local`, which exercises the same `Desktop`
+implementation in-process.
 
-## Platform testing
+### Trying the MCP server
 
-Say in the PR which platforms you actually ran on. The support table in the README marks what
-is verified versus what merely compiles; please update it when you verify something new.
+```sh
+printf '%s\n' \
+ '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"probe","version":"0"}}}' \
+ '{"jsonrpc":"2.0","method":"notifications/initialized"}' \
+ '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' | ./target/release/rdc mcp -t local
+```
 
-## Commits
+## Repository layout
 
-Conventional, descriptive commit messages. One logical change per commit where practical.
+| Path | Contents |
+|---|---|
+| `src/proto.rs` | wire and domain types shared by daemon, client, CLI and MCP |
+| `src/desktop/mod.rs` | the `Desktop` trait |
+| `src/desktop/local/` | in-process implementation: capture, input worker, per-platform window code |
+| `src/desktop/remote.rs` | HTTP client implementation |
+| `src/server/` | axum daemon, whois auth middleware, routes |
+| `src/tailscale.rs` | LocalAPI discovery per platform, CLI fallback |
+| `src/mcp.rs`, `src/view.rs` | MCP tools and pixel↔point mapping |
+| `src/keys.rs` | key chord grammar |
+| `src/service/` | LaunchAgent and systemd installers |
+| `src/doctor.rs`, `src/permissions.rs` | readiness checks and macOS TCC helpers |
+| `scripts/macos/` | signing identity and `.app` bundling |
+| `skills/rdc/` | the agent skill |
+| `docs/` | user documentation |
+
+## Pull request checklist
+
+- [ ] `cargo fmt`, `cargo clippy --all-targets -- -D warnings` and `cargo test` pass locally.
+- [ ] Say which platforms you actually ran on, and how (foreground, service, MCP).
+- [ ] If behaviour changed, update the relevant page in `docs/` and, if it affects agents,
+      `skills/rdc/SKILL.md`.
+- [ ] If you verified a platform that the README marks untested, update the status table.
+- [ ] Commits are descriptive; one logical change per commit where practical.
+
+## Style
+
+- Keep the `Desktop` trait the single seam: new capabilities go there first, then to the wire
+  API, then to the CLI and MCP. All three surfaces must stay equivalent.
+- No new network listeners, no shell execution, no credentials in the tree.
+- Prefer returning `RdcError` over panicking in daemon paths.
+- Platform-specific code goes behind `cfg(target_os = …)` in its own module; keep the common
+  path compiling on all three OSes (`cargo check --target x86_64-pc-windows-gnu` and
+  `--target aarch64-apple-darwin` work from Linux after `rustup target add`).
 
 ## License
 
-By contributing you agree that your contributions are licensed under the AGPL-3.0-or-later,
-the same license as the project.
+By contributing you agree that your contributions are licensed under the AGPL-3.0-or-later, the
+same license as the project.

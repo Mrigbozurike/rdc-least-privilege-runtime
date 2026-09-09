@@ -24,6 +24,7 @@ struct Cli {
     /// Machine to control: `local`, a name from config `[targets]`, a host[:port], or a URL.
     #[arg(short, long, global = true, default_value = "local", env = "RDC_TARGET")]
     target: String,
+    /// Log filter (tracing syntax), e.g. `debug` or `rdc=debug,hyper=warn`.
     #[arg(long, global = true, default_value = "info", env = "RDC_LOG")]
     log: String,
     #[command(subcommand)]
@@ -37,6 +38,7 @@ enum Cmd {
         /// Address to bind (default: this node's Tailscale IPv4).
         #[arg(long)]
         bind: Option<IpAddr>,
+        /// TCP port to listen on (default 7770 or `[serve].port` in config).
         #[arg(long)]
         port: Option<u16>,
         /// Tailnet login, node name or tag permitted to connect (repeatable; adds to config).
@@ -69,11 +71,13 @@ enum Cmd {
     Windows,
     /// Take a screenshot.
     Shot {
+        /// `all` (every monitor composited), `primary`, or a display id from `displays`.
         #[arg(long, default_value = "all")]
         display: DisplayTarget,
         /// Downscale so the longer edge is at most this many pixels.
         #[arg(long)]
         max: Option<u32>,
+        /// Encode as JPEG (smaller) instead of PNG.
         #[arg(long)]
         jpeg: bool,
         /// Output file (default: shot-<timestamp>.<ext>).
@@ -86,8 +90,10 @@ enum Cmd {
     Click {
         x: i32,
         y: i32,
+        /// left, right or middle.
         #[arg(long, default_value = "left")]
         button: MouseButton,
+        /// Double-click instead of single.
         #[arg(long)]
         double: bool,
     },
@@ -102,10 +108,13 @@ enum Cmd {
     },
     /// Scroll (positive dy = down, positive dx = right), optionally at a point.
     Scroll {
+        /// Horizontal wheel steps; positive scrolls right.
         #[arg(long, default_value_t = 0)]
         dx: i32,
+        /// Vertical wheel steps; positive scrolls down.
         #[arg(long, default_value_t = 0)]
         dy: i32,
+        /// Move the pointer here first (desktop points).
         #[arg(long, num_args = 2, value_names = ["X", "Y"])]
         at: Option<Vec<i32>>,
     },
@@ -115,10 +124,13 @@ enum Cmd {
     Key { chord: String },
     /// Focus a window by id, app name or title substring.
     Focus {
+        /// Window id from `windows`.
         #[arg(long, conflicts_with_all = ["app", "title"])]
         id: Option<u64>,
+        /// Case-insensitive substring of the application name.
         #[arg(long)]
         app: Option<String>,
+        /// Case-insensitive substring of the window title.
         #[arg(long)]
         title: Option<String>,
     },

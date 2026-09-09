@@ -5,6 +5,9 @@ description: Control another machine's desktop (screenshot, click, type, key, fo
 
 # rdc — Remote Desktop Control for agents
 
+Full documentation lives in the repo's `docs/` folder (`docs/mcp.md`, `docs/cli.md`,
+`docs/troubleshooting.md`); this skill is the short version.
+
 `rdc` is one binary with two roles. `rdc serve` runs on the machine being controlled and
 listens only on its Tailscale IP; every request is identified with tailscaled `whois` and
 checked against an allowlist. `rdc mcp --target NAME` runs on the agent's machine as an MCP
