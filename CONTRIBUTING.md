@@ -83,16 +83,11 @@ printf '%s\n' \
   path compiling on all three OSes (`cargo check --target x86_64-pc-windows-gnu` and
   `--target aarch64-apple-darwin` work from Linux after `rustup target add`).
 
-## License
+## License and sign-off
 
-By contributing you agree that your contributions are licensed under the AGPL-3.0-or-later, the
-same license as the project.
+rdc is licensed under the GPL-3.0-or-later. By contributing you agree that your contributions
+are licensed under the same terms.
 
-## Releasing
-
-1. Move the **Unreleased** entries in `CHANGELOG.md` under a new `## <version> — <date>` heading
-   and bump `version` in `Cargo.toml`.
-2. Commit, push, wait for CI.
-3. `git tag -a v<version> -m "rdc <version>" && git push origin v<version>`. The release job
-   builds all platforms, and `scripts/release-notes.sh` turns the changelog section into the
-   release notes. It fails if the section is missing.
+Please sign off each commit (`git commit -s`), which adds a `Signed-off-by:` line certifying
+the [Developer Certificate of Origin](https://developercertificate.org/): that you wrote the
+change or otherwise have the right to submit it under the project license.

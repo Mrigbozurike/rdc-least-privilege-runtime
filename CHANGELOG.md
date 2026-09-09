@@ -5,8 +5,15 @@ builds the GitHub release body from the matching `## <version>` section.
 
 ## Unreleased
 
-### Added
-- GitHub releases now carry the changelog section for the version as their notes.
+## 0.2.1 — 2026-09-09
+
+### Changed
+- **License is now GPL-3.0-or-later** (was AGPL-3.0-or-later). rdc is a program you run on
+  your own machines, not a hosted service, so the AGPL network clause added friction without
+  protecting anything; plain GPL keeps the requirement that distributed modifications are
+  published. There are no external contributions to date, so no consent was needed.
+- GitHub releases carry the changelog section for the version as their notes.
+- CONTRIBUTING asks for DCO sign-off (`git commit -s`).
 
 ## 0.2.0 — 2026-09-09
 

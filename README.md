@@ -127,7 +127,6 @@ about.
 
 ## License
 
-rdc is free software under the [GNU Affero General Public License v3.0 or later](LICENSE).
-If you modify rdc and let others interact with it over a network, including running a modified
-`rdc serve` that other people's agents connect to, the AGPL requires you to offer them the
-corresponding source.
+rdc is free software under the [GNU General Public License v3.0 or later](LICENSE). Use it,
+change it, ship it; if you distribute a modified version, publish your changes under the same
+terms so improvements stay open.

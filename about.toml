@@ -1,6 +1,6 @@
 # cargo-about configuration: generates THIRD_PARTY_LICENSES.html for release archives.
 accepted = [
-    "AGPL-3.0-or-later",
+    "GPL-3.0-or-later",
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
