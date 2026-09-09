@@ -1,6 +1,0 @@
-{
-  "mcpServers": {
-    "rdc-local": { "command": "./target/release/rdc", "args": ["mcp", "--target", "local"] },
-    "rdc-macmini": { "command": "./target/release/rdc", "args": ["mcp", "--target", "macmini"] }
-  }
-}

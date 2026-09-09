@@ -41,10 +41,8 @@ impl Hyprland {
     }
 
     fn run(&self, args: &[&str]) -> Result<String> {
-        let out = Command::new("hyprctl")
-            .args(args)
-            .output()
-            .map_err(|e| RdcError::Backend(format!("hyprctl: {e}")))?;
+        let out =
+            Command::new("hyprctl").args(args).output().map_err(|e| RdcError::Backend(format!("hyprctl: {e}")))?;
         if !out.status.success() {
             return Err(RdcError::Backend(format!(
                 "hyprctl {} failed: {}",
@@ -57,7 +55,8 @@ impl Hyprland {
 
     pub fn displays(&self) -> Result<Vec<Display>> {
         let raw = self.run(&["-j", "monitors"])?;
-        let mons: Vec<HMon> = serde_json::from_str(&raw).map_err(|e| RdcError::Backend(format!("hyprctl monitors json: {e}")))?;
+        let mons: Vec<HMon> =
+            serde_json::from_str(&raw).map_err(|e| RdcError::Backend(format!("hyprctl monitors json: {e}")))?;
         Ok(mons
             .into_iter()
             .map(|m| {
@@ -67,12 +66,7 @@ impl Hyprland {
                 Display {
                     id: m.id,
                     name: m.name,
-                    rect: Rect {
-                        x: m.x,
-                        y: m.y,
-                        w: (pw as f32 / s).round() as u32,
-                        h: (ph as f32 / s).round() as u32,
-                    },
+                    rect: Rect { x: m.x, y: m.y, w: (pw as f32 / s).round() as u32, h: (ph as f32 / s).round() as u32 },
                     scale: s,
                     primary: m.focused,
                 }
@@ -82,7 +76,8 @@ impl Hyprland {
 
     pub fn windows(&self) -> Result<Vec<Window>> {
         let raw = self.run(&["-j", "clients"])?;
-        let cs: Vec<HClient> = serde_json::from_str(&raw).map_err(|e| RdcError::Backend(format!("hyprctl clients json: {e}")))?;
+        let cs: Vec<HClient> =
+            serde_json::from_str(&raw).map_err(|e| RdcError::Backend(format!("hyprctl clients json: {e}")))?;
         let mut out: Vec<Window> = cs
             .into_iter()
             .filter(|c| c.mapped)

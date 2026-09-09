@@ -22,7 +22,20 @@ pub async fn run(request_permissions: bool) -> anyhow::Result<bool> {
         if !granted {
             healthy = false;
         }
-        line(Some(granted), "permission", format!("{name}{}", if granted { "" } else if request_permissions { " — prompt shown; grant it in System Settings, then re-run" } else { " — run `rdc doctor --request-permissions` from the GUI session" }));
+        line(
+            Some(granted),
+            "permission",
+            format!(
+                "{name}{}",
+                if granted {
+                    ""
+                } else if request_permissions {
+                    " — prompt shown; grant it in System Settings, then re-run"
+                } else {
+                    " — run `rdc doctor --request-permissions` from the GUI session"
+                }
+            ),
+        );
     }
     #[cfg(target_os = "linux")]
     {
@@ -41,7 +54,11 @@ pub async fn run(request_permissions: bool) -> anyhow::Result<bool> {
             Ok(ips) if !ips.is_empty() => {
                 line(Some(true), "tailscale ips", ips.iter().map(|i| i.to_string()).collect::<Vec<_>>().join(", "));
                 match ts.whois(ips[0]).await {
-                    Ok(id) => line(Some(true), "whois(self)", format!("{} / {} / tags {:?}", id.login.as_deref().unwrap_or("-"), id.node, id.tags)),
+                    Ok(id) => line(
+                        Some(true),
+                        "whois(self)",
+                        format!("{} / {} / tags {:?}", id.login.as_deref().unwrap_or("-"), id.node, id.tags),
+                    ),
                     Err(e) => {
                         healthy = false;
                         line(Some(false), "whois(self)", e.to_string());
@@ -74,7 +91,21 @@ pub async fn run(request_permissions: bool) -> anyhow::Result<bool> {
     match desk.displays().await {
         Ok(ds) if !ds.is_empty() => {
             for d in &ds {
-                line(Some(true), "display", format!("#{} {} {}x{} at ({},{}) scale {}{}", d.id, d.name, d.rect.w, d.rect.h, d.rect.x, d.rect.y, d.scale, if d.primary { " primary" } else { "" }));
+                line(
+                    Some(true),
+                    "display",
+                    format!(
+                        "#{} {} {}x{} at ({},{}) scale {}{}",
+                        d.id,
+                        d.name,
+                        d.rect.w,
+                        d.rect.h,
+                        d.rect.x,
+                        d.rect.y,
+                        d.scale,
+                        if d.primary { " primary" } else { "" }
+                    ),
+                );
             }
         }
         Ok(_) => {
@@ -87,15 +118,44 @@ pub async fn run(request_permissions: bool) -> anyhow::Result<bool> {
         }
     }
     let t0 = std::time::Instant::now();
-    match desk.screenshot(ScreenshotReq { display: DisplayTarget::All, format: ImageFormat::Png, max_long_edge: Some(1568) }).await {
-        Ok(s) => line(Some(true), "screenshot", format!("{}x{} png {} KB in {:?} (covers {:?})", s.width, s.height, s.data.len() / 1024, t0.elapsed(), s.rect)),
+    match desk
+        .screenshot(ScreenshotReq { display: DisplayTarget::All, format: ImageFormat::Png, max_long_edge: Some(1568) })
+        .await
+    {
+        Ok(s) => line(
+            Some(true),
+            "screenshot",
+            format!(
+                "{}x{} png {} KB in {:?} (covers {:?})",
+                s.width,
+                s.height,
+                s.data.len() / 1024,
+                t0.elapsed(),
+                s.rect
+            ),
+        ),
         Err(e) => {
             healthy = false;
-            line(Some(false), "screenshot", format!("{e} (macOS: grant Screen Recording; Wayland: portal/screencopy missing?)"));
+            line(
+                Some(false),
+                "screenshot",
+                format!("{e} (macOS: grant Screen Recording; Wayland: portal/screencopy missing?)"),
+            );
         }
     }
     match desk.windows().await {
-        Ok(ws) => line(Some(true), "windows", format!("{} listed{}", ws.len(), ws.iter().find(|w| w.focused).map(|w| format!(", focused: {} — {}", w.app, w.title)).unwrap_or_default())),
+        Ok(ws) => line(
+            Some(true),
+            "windows",
+            format!(
+                "{} listed{}",
+                ws.len(),
+                ws.iter()
+                    .find(|w| w.focused)
+                    .map(|w| format!(", focused: {} — {}", w.app, w.title))
+                    .unwrap_or_default()
+            ),
+        ),
         Err(e) => line(Some(false), "windows", e.to_string()),
     }
     // A zero-length relative-ish probe: move the pointer to where it already is.

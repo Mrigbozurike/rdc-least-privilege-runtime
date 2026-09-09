@@ -123,7 +123,10 @@ impl Tailscale {
             Some(Err(e)) => tracing::debug!("LocalAPI whois failed ({e}); trying CLI"),
             None => {}
         }
-        let cli = self.cli.as_ref().ok_or_else(|| RdcError::Unauthorized(format!("cannot identify {ip}: no tailscaled access")))?;
+        let cli = self
+            .cli
+            .as_ref()
+            .ok_or_else(|| RdcError::Unauthorized(format!("cannot identify {ip}: no tailscaled access")))?;
         let out = Command::new(cli)
             .args(["whois", "--json", &ip.to_string()])
             .output()
@@ -134,7 +137,8 @@ impl Tailscale {
                 String::from_utf8_lossy(&out.stderr).trim()
             )));
         }
-        let w: WhoIsJson = serde_json::from_slice(&out.stdout).map_err(|e| RdcError::Backend(format!("whois json: {e}")))?;
+        let w: WhoIsJson =
+            serde_json::from_slice(&out.stdout).map_err(|e| RdcError::Backend(format!("whois json: {e}")))?;
         Ok(Identity {
             login: w.user.map(|u| u.login_name).filter(|s| !s.is_empty()),
             node: node_short(&w.node.name, &w.node.computed_name),
@@ -194,9 +198,7 @@ fn detect_api() -> Option<Api> {
 
 #[cfg(target_os = "windows")]
 fn detect_api() -> Option<Api> {
-    Some(Api::Pipe(LocalApi::new_with_named_pipe_path(
-        r"\\.\pipe\ProtectedPrefix\Administrators\Tailscale\tailscaled",
-    )))
+    Some(Api::Pipe(LocalApi::new_with_named_pipe_path(r"\\.\pipe\ProtectedPrefix\Administrators\Tailscale\tailscaled")))
 }
 
 /// GUI Tailscale on macOS publishes `sameuserproof-<port>-<token>`; the CLI finds it via lsof

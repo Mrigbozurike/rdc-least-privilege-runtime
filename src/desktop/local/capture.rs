@@ -123,7 +123,11 @@ fn screencapture_cli(d: &Display) -> Result<RgbaImage> {
         .map_err(|e| RdcError::Backend(format!("screencapture: {e}")))?;
     if !out.status.success() {
         let _ = std::fs::remove_file(&path);
-        return Err(RdcError::Backend(format!("screencapture exited {}: {}", out.status, String::from_utf8_lossy(&out.stderr).trim())));
+        return Err(RdcError::Backend(format!(
+            "screencapture exited {}: {}",
+            out.status,
+            String::from_utf8_lossy(&out.stderr).trim()
+        )));
     }
     let img = image::open(&path).map_err(|e| RdcError::Backend(format!("decode screencapture png: {e}")))?.into_rgba8();
     let _ = std::fs::remove_file(&path);
@@ -136,22 +140,14 @@ pub fn screenshot(displays: &[Display], req: &ScreenshotReq) -> Result<Screensho
     }
     let chosen: Vec<&Display> = match req.display {
         DisplayTarget::All => displays.iter().collect(),
-        DisplayTarget::Primary => vec![
-            displays.iter().find(|d| d.primary).unwrap_or(&displays[0]),
-        ],
-        DisplayTarget::Id(id) => vec![
-            displays
-                .iter()
-                .find(|d| d.id == id)
-                .ok_or_else(|| RdcError::NotFound(format!("display {id}")))?,
-        ],
+        DisplayTarget::Primary => vec![displays.iter().find(|d| d.primary).unwrap_or(&displays[0])],
+        DisplayTarget::Id(id) => {
+            vec![displays.iter().find(|d| d.id == id).ok_or_else(|| RdcError::NotFound(format!("display {id}")))?]
+        }
     };
 
-    let (mut img, rect) = if chosen.len() == 1 {
-        (capture_display(chosen[0])?, chosen[0].rect)
-    } else {
-        composite(&chosen)?
-    };
+    let (mut img, rect) =
+        if chosen.len() == 1 { (capture_display(chosen[0])?, chosen[0].rect) } else { composite(&chosen)? };
 
     if let Some(max) = req.max_long_edge {
         let long = img.width().max(img.height());

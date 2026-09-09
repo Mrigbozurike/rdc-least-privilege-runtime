@@ -146,7 +146,10 @@ impl std::str::FromStr for MouseButton {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum InputAction {
-    MouseMove { x: i32, y: i32 },
+    MouseMove {
+        x: i32,
+        y: i32,
+    },
     Click {
         x: i32,
         y: i32,
@@ -157,7 +160,10 @@ pub enum InputAction {
         count: u8,
     },
     /// Press or release a button at the current pointer position.
-    Button { button: MouseButton, down: bool },
+    Button {
+        button: MouseButton,
+        down: bool,
+    },
     Drag {
         from: (i32, i32),
         to: (i32, i32),
@@ -174,9 +180,13 @@ pub enum InputAction {
         dy: i32,
     },
     /// Type literal text (unicode ok).
-    Type { text: String },
+    Type {
+        text: String,
+    },
     /// Press a key chord such as `cmd+shift+4`, `ctrl+c`, `enter`, `f5`.
-    Key { chord: String },
+    Key {
+        chord: String,
+    },
 }
 
 fn one() -> u8 {
@@ -237,7 +247,12 @@ impl RdcError {
     /// The detail without the category prefix that `Display` adds.
     pub fn message(&self) -> &str {
         match self {
-            Self::NotFound(m) | Self::Unsupported(m) | Self::Permission(m) | Self::Unauthorized(m) | Self::BadRequest(m) | Self::Backend(m) => m,
+            Self::NotFound(m)
+            | Self::Unsupported(m)
+            | Self::Permission(m)
+            | Self::Unauthorized(m)
+            | Self::BadRequest(m)
+            | Self::Backend(m) => m,
         }
     }
 

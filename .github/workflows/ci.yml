@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: -D warnings
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            bin: rdc
+          - name: macos-arm64
+            os: macos-15
+            target: aarch64-apple-darwin
+            bin: rdc
+          - name: windows-x86_64
+            os: windows-2025
+            target: x86_64-pc-windows-msvc
+            bin: rdc.exe
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libclang-dev libxcb1-dev libxcb-randr0-dev libxcb-shm0-dev \
+            libxrandr-dev libdbus-1-dev libpipewire-0.3-dev libwayland-dev libegl-dev \
+            libxkbcommon-dev libgbm-dev
+
+      - name: rustfmt
+        if: matrix.name == 'linux-x86_64'
+        run: cargo fmt --all -- --check
+
+      - name: clippy
+        run: cargo clippy --release --target ${{ matrix.target }} --all-targets
+
+      - name: test
+        run: cargo test --release --target ${{ matrix.target }}
+
+      - name: build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          out=rdc-${{ matrix.name }}
+          mkdir -p dist/$out
+          cp target/${{ matrix.target }}/release/${{ matrix.bin }} dist/$out/
+          cp README.md LICENSE dist/$out/ 2>/dev/null || cp README.md dist/$out/
+          cp -r skills dist/$out/
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            (cd dist && 7z a -tzip $out.zip $out >/dev/null)
+          else
+            if [ "${{ runner.os }}" = "macOS" ]; then cp -r scripts dist/$out/; fi
+            tar -C dist -czf dist/$out.tar.gz $out
+          fi
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rdc-${{ matrix.name }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error
+
+  release:
+    name: GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: checksums
+        run: |
+          cd artifacts
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true
+          body: |
+            ## Unsigned binaries
+
+            These binaries are **not code-signed or notarized**.
+
+            - **macOS**: Gatekeeper will refuse to open the raw binary. Either build from source on the Mac
+              (recommended, so you can sign `rdc.app` with your own identity via `scripts/macos/bundle-and-sign.sh`
+              and keep Screen Recording/Accessibility grants across upgrades), or clear the quarantine flag:
+              `xattr -d com.apple.quarantine rdc`. Note that TCC permissions granted to an unsigned/ad-hoc
+              binary are tied to its exact hash and are lost on every upgrade.
+            - **Windows**: SmartScreen will warn on first run. Choose "More info" → "Run anyway", or build from source.
+            - **Linux**: no signature checks apply; verify `SHA256SUMS`.
+
+            Verify downloads with `sha256sum -c SHA256SUMS`.

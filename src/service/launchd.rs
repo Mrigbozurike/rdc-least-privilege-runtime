@@ -7,7 +7,9 @@ fn plist_path() -> Result<std::path::PathBuf> {
 }
 
 fn uid() -> String {
-    String::from_utf8_lossy(&Command::new("id").arg("-u").output().map(|o| o.stdout).unwrap_or_default()).trim().to_string()
+    String::from_utf8_lossy(&Command::new("id").arg("-u").output().map(|o| o.stdout).unwrap_or_default())
+        .trim()
+        .to_string()
 }
 
 pub fn run(op: Op) -> Result<()> {
@@ -49,7 +51,9 @@ pub fn run(op: Op) -> Result<()> {
             );
             let _ = Command::new("launchctl").args(["bootout", &target]).output();
             std::fs::write(&plist, xml).with_context(|| format!("writing {}", plist.display()))?;
-            let out = Command::new("launchctl").args(["bootstrap", &format!("gui/{}", uid()), &plist.to_string_lossy()]).output()?;
+            let out = Command::new("launchctl")
+                .args(["bootstrap", &format!("gui/{}", uid()), &plist.to_string_lossy()])
+                .output()?;
             if !out.status.success() {
                 anyhow::bail!("launchctl bootstrap failed: {}", String::from_utf8_lossy(&out.stderr).trim());
             }
@@ -68,7 +72,9 @@ pub fn run(op: Op) -> Result<()> {
             let out = Command::new("launchctl").args(["print", &target]).output()?;
             if out.status.success() {
                 let s = String::from_utf8_lossy(&out.stdout);
-                for l in s.lines().filter(|l| l.contains("state =") || l.contains("pid =") || l.contains("program =") || l.contains("last exit")) {
+                for l in s.lines().filter(|l| {
+                    l.contains("state =") || l.contains("pid =") || l.contains("program =") || l.contains("last exit")
+                }) {
                     println!("{}", l.trim());
                 }
             } else {

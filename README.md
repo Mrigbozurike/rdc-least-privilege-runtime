@@ -15,7 +15,21 @@ No shell execution is exposed; use SSH for that.
 
 ## Status
 
-Core, Linux/Hyprland daemon, CLI and the MCP server work. macOS packaging and Windows follow.
+| Platform | Daemon (`rdc serve`) | Notes |
+|---|---|---|
+| Linux, Wayland (Hyprland) | verified | capture via portal/wlr-screencopy, input via wlr virtual pointer/keyboard, windows via `hyprctl` |
+| Linux, Wayland (GNOME/KDE) | compiles, untested | capture via portal; input via `xdg_desktop`/libei paths in enigo |
+| Linux, X11 | compiles, untested | xcap + x11rb |
+| macOS 15+ (Apple silicon) | verified | needs Screen Recording + Accessibility; ship as a signed `.app`, see below |
+| Windows 10/11 | compiles in CI, untested | window focus and service install not implemented yet |
+
+CI builds and tests all three on every push. Release binaries are attached to tags.
+
+**Release binaries are not code-signed.** On macOS, Gatekeeper blocks the raw download and, more
+importantly, TCC permissions granted to an unsigned binary are tied to its exact hash and vanish on
+every upgrade. Build on the Mac and sign with your own identity using `scripts/macos` (a
+self-signed certificate is enough). On Windows, SmartScreen warns on first run. Verify downloads
+against `SHA256SUMS`.
 
 ## Quick start
 
@@ -37,7 +51,7 @@ rdc -t brians-m4-mac-mini key cmd+q
 
 ### Claude Code
 
-Add to `.mcp.json` in a project (or `~/.claude.json` for everywhere):
+Add to `.mcp.json` in a project (or `~/.claude.json` for everywhere); see `.mcp.json.example`:
 
 ```json
 {

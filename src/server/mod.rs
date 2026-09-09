@@ -31,7 +31,9 @@ pub async fn serve(desktop: Arc<dyn Desktop>, ts: Tailscale, opts: ServeOpts) ->
         if granted {
             tracing::info!("permission {name}: granted");
         } else {
-            tracing::warn!("permission {name}: NOT granted; approve it in System Settings > Privacy & Security, then restart rdc");
+            tracing::warn!(
+                "permission {name}: NOT granted; approve it in System Settings > Privacy & Security, then restart rdc"
+            );
         }
     }
     let bind_ip = match opts.bind {
@@ -43,7 +45,9 @@ pub async fn serve(desktop: Arc<dyn Desktop>, ts: Tailscale, opts: ServeOpts) ->
         }
     };
     if !opts.dev_loopback && !bind_ip.is_loopback() && !is_tailscale_ip(bind_ip) {
-        anyhow::bail!("{bind_ip} is not a Tailscale address; refusing to expose the desktop on it (use --dev-loopback for 127.0.0.1)");
+        anyhow::bail!(
+            "{bind_ip} is not a Tailscale address; refusing to expose the desktop on it (use --dev-loopback for 127.0.0.1)"
+        );
     }
     if opts.allow.is_empty() && !opts.dev_loopback {
         anyhow::bail!("allowlist is empty: set [serve].allow in config or pass --allow; nobody could connect");

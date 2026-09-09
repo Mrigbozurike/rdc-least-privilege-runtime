@@ -24,20 +24,14 @@ impl ViewMap {
         let py = py.clamp(0.0, self.height as f64);
         let sx = self.rect.w as f64 / self.width.max(1) as f64;
         let sy = self.rect.h as f64 / self.height.max(1) as f64;
-        (
-            (self.rect.x as f64 + px * sx).round() as i32,
-            (self.rect.y as f64 + py * sy).round() as i32,
-        )
+        ((self.rect.x as f64 + px * sx).round() as i32, (self.rect.y as f64 + py * sy).round() as i32)
     }
 
     /// Desktop point → image pixel (for describing windows in image space).
     pub fn to_view(self, x: i32, y: i32) -> (i32, i32) {
         let sx = self.width as f64 / self.rect.w.max(1) as f64;
         let sy = self.height as f64 / self.rect.h.max(1) as f64;
-        (
-            ((x - self.rect.x) as f64 * sx).round() as i32,
-            ((y - self.rect.y) as f64 * sy).round() as i32,
-        )
+        (((x - self.rect.x) as f64 * sx).round() as i32, ((y - self.rect.y) as f64 * sy).round() as i32)
     }
 
     pub fn describe(self) -> String {

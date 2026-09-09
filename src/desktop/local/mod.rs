@@ -106,7 +106,9 @@ impl Desktop for LocalDesktop {
         let bounds = displays
             .iter()
             .skip(1)
-            .fold(displays.first().map(|d| d.rect).unwrap_or(Rect { x: 0, y: 0, w: 0, h: 0 }), |acc, d| acc.union(&d.rect));
+            .fold(displays.first().map(|d| d.rect).unwrap_or(Rect { x: 0, y: 0, w: 0, h: 0 }), |acc, d| {
+                acc.union(&d.rect)
+            });
         self.input.input(action, bounds).await
     }
 

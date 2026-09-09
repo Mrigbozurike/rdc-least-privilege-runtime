@@ -54,17 +54,25 @@ impl Auth {
     pub async fn identify(&self, ip: IpAddr) -> Result<Identity, RdcError> {
         if ip.is_loopback() {
             if self.dev_loopback {
-                return Ok(Identity { login: Some("dev@loopback".into()), node: "localhost".into(), tags: vec![], ip: ip.to_string() });
+                return Ok(Identity {
+                    login: Some("dev@loopback".into()),
+                    node: "localhost".into(),
+                    tags: vec![],
+                    ip: ip.to_string(),
+                });
             }
-            return Err(RdcError::Unauthorized("loopback connections are not accepted (use --dev-loopback while testing)".into()));
+            return Err(RdcError::Unauthorized(
+                "loopback connections are not accepted (use --dev-loopback while testing)".into(),
+            ));
         }
         if !is_tailscale_ip(ip) {
             return Err(RdcError::Unauthorized(format!("{ip} is not a Tailscale address")));
         }
         if let Some((at, id)) = self.cache.lock().await.get(&ip)
-            && at.elapsed() < CACHE_TTL {
-                return Ok(id.clone());
-            }
+            && at.elapsed() < CACHE_TTL
+        {
+            return Ok(id.clone());
+        }
         let id = self.ts.whois(ip).await?;
         self.cache.lock().await.insert(ip, (Instant::now(), id.clone()));
         Ok(id)
@@ -124,7 +132,12 @@ mod tests {
     use super::*;
 
     fn id(login: Option<&str>, node: &str, tags: &[&str]) -> Identity {
-        Identity { login: login.map(String::from), node: node.into(), tags: tags.iter().map(|s| s.to_string()).collect(), ip: "100.1.1.1".into() }
+        Identity {
+            login: login.map(String::from),
+            node: node.into(),
+            tags: tags.iter().map(|s| s.to_string()).collect(),
+            ip: "100.1.1.1".into(),
+        }
     }
 
     #[test]

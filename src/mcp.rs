@@ -152,7 +152,13 @@ fn parse_button(b: &Option<String>) -> Result<MouseButton, ErrorData> {
 #[tool_router]
 impl RdcServer {
     pub fn new(desktop: Arc<dyn Desktop>, target: String, max_edge: Option<u32>) -> Self {
-        Self { desktop, target, view: Arc::new(Mutex::new(None)), ops: Arc::new(tokio::sync::Mutex::new(())), max_edge: max_edge.unwrap_or(DEFAULT_MAX_EDGE) }
+        Self {
+            desktop,
+            target,
+            view: Arc::new(Mutex::new(None)),
+            ops: Arc::new(tokio::sync::Mutex::new(())),
+            max_edge: max_edge.unwrap_or(DEFAULT_MAX_EDGE),
+        }
     }
 
     async fn take(&self, display: DisplayTarget, max: u32) -> Result<(Screenshot, ViewMap), ErrorData> {
@@ -179,7 +185,11 @@ impl RdcServer {
 
     fn image_result(&self, shot: &Screenshot, map: &ViewMap, note: Option<String>) -> CallToolResult {
         let b64 = base64::engine::general_purpose::STANDARD.encode(&shot.data);
-        let mut text = format!("{}: {}. Coordinates for click/move/drag/scroll are pixels in this image.", self.target, map.describe());
+        let mut text = format!(
+            "{}: {}. Coordinates for click/move/drag/scroll are pixels in this image.",
+            self.target,
+            map.describe()
+        );
         if let Some(n) = note {
             text = format!("{n}\n{text}");
         }
@@ -196,7 +206,10 @@ impl RdcServer {
         Ok(self.image_result(&shot, &map, Some(note)))
     }
 
-    #[tool(description = "Take a screenshot of the remote desktop. Returns the image plus the desktop region it covers. Always look at a screenshot before clicking.", annotations(read_only_hint = true))]
+    #[tool(
+        description = "Take a screenshot of the remote desktop. Returns the image plus the desktop region it covers. Always look at a screenshot before clicking.",
+        annotations(read_only_hint = true)
+    )]
     async fn screenshot(&self, Parameters(p): Parameters<ScreenshotParams>) -> Result<CallToolResult, ErrorData> {
         let _op = self.ops.lock().await;
         let display = match p.display.as_deref() {
@@ -214,7 +227,10 @@ impl RdcServer {
         Ok(CallToolResult::success(vec![ContentBlock::text(serde_json::to_string_pretty(&d).map_err(err)?)]))
     }
 
-    #[tool(description = "List open windows with id, app, title, geometry (in desktop points and, if a screenshot exists, in image pixels) and focus state.", annotations(read_only_hint = true))]
+    #[tool(
+        description = "List open windows with id, app, title, geometry (in desktop points and, if a screenshot exists, in image pixels) and focus state.",
+        annotations(read_only_hint = true)
+    )]
     async fn windows(&self) -> Result<CallToolResult, ErrorData> {
         let _op = self.ops.lock().await;
         let ws = self.desktop.windows().await.map_err(err)?;
@@ -265,7 +281,11 @@ impl RdcServer {
         let button = parse_button(&p.button)?;
         let count = p.count.unwrap_or(1).clamp(1, 3);
         self.desktop.input(InputAction::Click { x, y, button, count }).await.map_err(err)?;
-        self.after(p.then_screenshot, format!("{button:?} click x{count} at image ({}, {}) = desktop ({x}, {y})", p.x, p.y)).await
+        self.after(
+            p.then_screenshot,
+            format!("{button:?} click x{count} at image ({}, {}) = desktop ({x}, {y})", p.x, p.y),
+        )
+        .await
     }
 
     #[tool(description = "Press-drag-release from one point to another (pixels of the last screenshot).")]
@@ -278,7 +298,9 @@ impl RdcServer {
         self.after(p.then_screenshot, format!("dragged desktop {from:?} → {to:?}")).await
     }
 
-    #[tool(description = "Scroll by wheel steps, optionally at a point. Positive dy scrolls down, positive dx scrolls right.")]
+    #[tool(
+        description = "Scroll by wheel steps, optionally at a point. Positive dy scrolls down, positive dx scrolls right."
+    )]
     async fn scroll(&self, Parameters(p): Parameters<ScrollParams>) -> Result<CallToolResult, ErrorData> {
         let _op = self.ops.lock().await;
         let at = match (p.x, p.y) {
@@ -289,7 +311,10 @@ impl RdcServer {
         self.after(p.then_screenshot, format!("scrolled dx={} dy={} at {at:?}", p.dx, p.dy)).await
     }
 
-    #[tool(name = "type", description = "Type literal text into the focused window. For Enter, Tab, shortcuts, use `key`.")]
+    #[tool(
+        name = "type",
+        description = "Type literal text into the focused window. For Enter, Tab, shortcuts, use `key`."
+    )]
     async fn type_text(&self, Parameters(p): Parameters<TypeParams>) -> Result<CallToolResult, ErrorData> {
         let _op = self.ops.lock().await;
         let n = p.text.chars().count();

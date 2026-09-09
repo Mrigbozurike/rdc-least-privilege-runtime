@@ -140,7 +140,8 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_new(format!("{},enigo=error", cli.log)).unwrap_or_else(|_| "info,enigo=error".into()),
+            tracing_subscriber::EnvFilter::try_new(format!("{},enigo=error", cli.log))
+                .unwrap_or_else(|_| "info,enigo=error".into()),
         )
         .with_writer(std::io::stderr)
         .init();
@@ -153,7 +154,12 @@ async fn main() -> Result<()> {
             let mut allow_all = cfg.serve.allow.clone();
             allow_all.extend(allow);
             let bind = bind.or_else(|| cfg.serve.bind.as_deref().and_then(|s| s.parse().ok()));
-            server::serve(desktop, ts, server::ServeOpts { bind, port: port.unwrap_or(cfg.serve.port), allow: allow_all, dev_loopback }).await
+            server::serve(
+                desktop,
+                ts,
+                server::ServeOpts { bind, port: port.unwrap_or(cfg.serve.port), allow: allow_all, dev_loopback },
+            )
+            .await
         }
         Cmd::Mcp { max } => {
             let desktop: Arc<dyn Desktop> = match cfg.resolve_target(&cli.target)? {
@@ -193,7 +199,10 @@ async fn client(cfg: &config::Config, target: &str, cmd: Cmd) -> Result<()> {
             let format = if jpeg { ImageFormat::Jpeg } else { ImageFormat::Png };
             let s = desktop.screenshot(ScreenshotReq { display, format, max_long_edge: max }).await?;
             let path = out.unwrap_or_else(|| {
-                let t = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+                let t = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
                 PathBuf::from(format!("shot-{t}.{}", format.ext()))
             });
             std::fs::write(&path, &s.data).with_context(|| format!("writing {}", path.display()))?;
@@ -206,11 +215,12 @@ async fn client(cfg: &config::Config, target: &str, cmd: Cmd) -> Result<()> {
             .input(InputAction::Click { x, y, button, count: if double { 2 } else { 1 } })
             .await
             .map_err(Into::into),
-        Cmd::Drag { x1, y1, x2, y2, button } => desktop.input(InputAction::Drag { from: (x1, y1), to: (x2, y2), button }).await.map_err(Into::into),
-        Cmd::Scroll { dx, dy, at } => desktop
-            .input(InputAction::Scroll { at: at.map(|v| (v[0], v[1])), dx, dy })
-            .await
-            .map_err(Into::into),
+        Cmd::Drag { x1, y1, x2, y2, button } => {
+            desktop.input(InputAction::Drag { from: (x1, y1), to: (x2, y2), button }).await.map_err(Into::into)
+        }
+        Cmd::Scroll { dx, dy, at } => {
+            desktop.input(InputAction::Scroll { at: at.map(|v| (v[0], v[1])), dx, dy }).await.map_err(Into::into)
+        }
         Cmd::Type { text } => desktop.input(InputAction::Type { text }).await.map_err(Into::into),
         Cmd::Key { chord } => {
             keys::parse_chord(&chord)?;

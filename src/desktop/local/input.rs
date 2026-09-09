@@ -34,10 +34,7 @@ pub struct InputWorker {
 impl InputWorker {
     pub fn start() -> Self {
         let (tx, rx) = mpsc::channel::<Job>();
-        thread::Builder::new()
-            .name("rdc-input".into())
-            .spawn(move || worker(rx))
-            .expect("spawn input thread");
+        thread::Builder::new().name("rdc-input".into()).spawn(move || worker(rx)).expect("spawn input thread");
         Self { tx }
     }
 
@@ -183,9 +180,9 @@ fn perform(e: &mut Enigo, m: &CoordMap, a: InputAction) -> Result<()> {
             }
             Ok(())
         }
-        InputAction::Button { button, down } => e
-            .button(btn(button), if down { Direction::Press } else { Direction::Release })
-            .map_err(ie),
+        InputAction::Button { button, down } => {
+            e.button(btn(button), if down { Direction::Press } else { Direction::Release }).map_err(ie)
+        }
         InputAction::Drag { from, to, button } => {
             move_abs(e, m, from.0, from.1)?;
             thread::sleep(Duration::from_millis(30));
@@ -251,10 +248,26 @@ fn key_for(k: &KeyName) -> Key {
         KeyName::Right => Key::RightArrow,
         KeyName::CapsLock => Key::CapsLock,
         KeyName::F(n) => match n {
-            1 => Key::F1, 2 => Key::F2, 3 => Key::F3, 4 => Key::F4, 5 => Key::F5, 6 => Key::F6,
-            7 => Key::F7, 8 => Key::F8, 9 => Key::F9, 10 => Key::F10, 11 => Key::F11, 12 => Key::F12,
-            13 => Key::F13, 14 => Key::F14, 15 => Key::F15, 16 => Key::F16, 17 => Key::F17, 18 => Key::F18,
-            19 => Key::F19, 20 => Key::F20,
+            1 => Key::F1,
+            2 => Key::F2,
+            3 => Key::F3,
+            4 => Key::F4,
+            5 => Key::F5,
+            6 => Key::F6,
+            7 => Key::F7,
+            8 => Key::F8,
+            9 => Key::F9,
+            10 => Key::F10,
+            11 => Key::F11,
+            12 => Key::F12,
+            13 => Key::F13,
+            14 => Key::F14,
+            15 => Key::F15,
+            16 => Key::F16,
+            17 => Key::F17,
+            18 => Key::F18,
+            19 => Key::F19,
+            20 => Key::F20,
             #[cfg(not(target_os = "macos"))]
             21 => Key::F21,
             #[cfg(not(target_os = "macos"))]
