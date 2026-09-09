@@ -6,7 +6,7 @@ rdc [-t TARGET] [--log FILTER] <command>
 
 `-t/--target` selects the machine for every client command (default `local`; see
 [Configuration](configuration.md#resolving---target)). `--log` sets the tracing filter
-(`info` by default); logs go to stderr.
+(`info` by default); logs go to stderr, or to a file with `--log-file PATH` (`RDC_LOG_FILE`).
 
 ## Daemon side
 
@@ -26,9 +26,9 @@ empty allowlist.
 ### `rdc service install | uninstall | status`
 
 Manage a per-user background service that runs `rdc serve`: a LaunchAgent on macOS
-(`dev.rdc.daemon`), a `systemd --user` unit on Linux. Not implemented on Windows yet. The service
-runs the binary at the path `rdc service install` was invoked from, so install from the final
-location (on macOS, from inside `rdc.app`).
+(`dev.rdc.daemon`), a `systemd --user` unit on Linux, an elevated Task Scheduler logon task on
+Windows. The service runs the binary at the path `rdc service install` was invoked from, so
+install from the final location (on macOS, from inside `rdc.app`).
 
 ### `rdc audit [-n N] [--json] [--path FILE]`
 

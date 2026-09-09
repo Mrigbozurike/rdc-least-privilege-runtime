@@ -5,6 +5,17 @@ builds the GitHub release body from the matching `## <version>` section.
 
 ## Unreleased
 
+### Added
+- **Windows support, verified on Windows 11.** `rdc service install` creates an elevated Task
+  Scheduler logon task that runs the daemon in the interactive session with a log file;
+  `service uninstall` stops the running daemon. Window `focus` implemented (foreground-thread
+  attach with an Alt-tap fallback). Absolute pointer moves use `SendInput` over the whole
+  virtual desktop so secondary monitors are addressable (untested on real hardware yet).
+- `--log-file` / `RDC_LOG_FILE` to append logs to a file instead of stderr.
+
+### Fixed
+- Windows: the service path no longer carries the `\\?\` verbatim prefix.
+
 ## 0.2.1 — 2026-09-09
 
 ### Changed

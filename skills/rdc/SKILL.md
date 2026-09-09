@@ -101,6 +101,12 @@ url = "http://host.tailnet.ts.net:7770"
 - Screenshots use `/usr/sbin/screencapture` (fast); the CoreGraphics fallback is slow on Tahoe.
 - Only humans can enter passwords or click TCC prompts; ask, don't work around.
 
+### Windows
+
+Install the daemon with `rdc service install` (an elevated logon task in the user's desktop
+session); never run `rdc serve` from an SSH session, which has no real display. Coordinates are
+physical pixels. Details: `docs/setup-windows.md`.
+
 ### Linux (Wayland/Hyprland)
 
 Capture via portal Screenshot or wlr-screencopy, input via wlr virtual pointer/keyboard,

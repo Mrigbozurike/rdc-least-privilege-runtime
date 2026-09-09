@@ -25,7 +25,16 @@ pub enum Op {
 /// Path of the executable the service should run. On macOS prefer the .app bundle copy if
 /// this binary lives inside one, so TCC grants are keyed to the bundle.
 pub fn service_binary() -> Result<PathBuf> {
-    Ok(std::env::current_exe()?.canonicalize()?)
+    let p = std::env::current_exe()?.canonicalize()?;
+    // Windows canonicalize() yields a verbatim `\\?\C:\...` path, which confuses schtasks
+    // and looks alarming in logs; strip the prefix for ordinary drive paths.
+    let s = p.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\")
+        && rest.as_bytes().get(1) == Some(&b':')
+    {
+        return Ok(PathBuf::from(rest));
+    }
+    Ok(p)
 }
 
 #[cfg_attr(target_os = "linux", allow(dead_code))]

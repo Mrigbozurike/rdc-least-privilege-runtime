@@ -36,7 +36,7 @@ button, and carries on.
 | Linux, Wayland (GNOME, KDE) | capture only | screenshots via the portal work; synthetic input needs the RemoteDesktop portal, not wired up yet |
 | Linux, X11 | compiles, untested | |
 | macOS 15+, Apple silicon | verified | needs Screen Recording + Accessibility, see [macOS setup](docs/setup-macos.md) |
-| Windows 10/11 | compiles in CI, untested | single monitor only; window focus and service install not implemented yet |
+| Windows 11 | verified | single display verified; multi-monitor implemented but untested. See [Windows setup](docs/setup-windows.md) |
 
 CI builds and tests all three on every push. Tagged releases attach binaries, which are **not
 code-signed** (see [Install](docs/install.md#unsigned-binaries)).
@@ -107,7 +107,7 @@ agents how to use rdc well.
 | [MCP tools](docs/mcp.md) | tool reference, coordinate model, Claude Code setup |
 | [macOS setup](docs/setup-macos.md) | signing, permissions, LaunchAgent, upgrades |
 | [Linux setup](docs/setup-linux.md) | Wayland compositors, X11, systemd service |
-| [Windows](docs/setup-windows.md) | what works today and what doesn't |
+| [Windows setup](docs/setup-windows.md) | scheduled-task daemon, elevation, toolchain, firewall |
 | [Architecture](docs/architecture.md) | how it fits together, wire API, auth flow |
 | [Troubleshooting](docs/troubleshooting.md) | symptoms and fixes |
 | [Security](SECURITY.md) | threat model and vulnerability reporting |

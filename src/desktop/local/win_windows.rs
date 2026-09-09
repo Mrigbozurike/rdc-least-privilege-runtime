@@ -7,7 +7,8 @@ use std::ffi::c_void;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_MOVE, MOUSEEVENTF_VIRTUALDESK, MOUSEINPUT, SendInput,
+    INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYEVENTF_KEYUP, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_MOVE,
+    MOUSEEVENTF_VIRTUALDESK, MOUSEINPUT, SendInput, VK_MENU,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, GetForegroundWindow, GetSystemMetrics, GetWindowThreadProcessId, IsIconic, SM_CXVIRTUALSCREEN,
@@ -87,15 +88,38 @@ pub fn focus(w: &Window) -> Result<()> {
         let me = GetCurrentThreadId();
         let attached = fg_thread != 0 && fg_thread != me && AttachThreadInput(me, fg_thread, true).as_bool();
         let _ = BringWindowToTop(target);
-        let ok = SetForegroundWindow(target).as_bool();
+        let mut ok = SetForegroundWindow(target).as_bool();
+        if !ok {
+            // Windows grants foreground rights to the process that most recently sent input.
+            // A bare Alt press and release is the long-standing, harmless way to earn them.
+            tap_alt();
+            let _ = BringWindowToTop(target);
+            ok = SetForegroundWindow(target).as_bool();
+        }
         if attached {
             let _ = AttachThreadInput(me, fg_thread, false);
         }
-        std::thread::sleep(std::time::Duration::from_millis(50));
+        std::thread::sleep(std::time::Duration::from_millis(80));
         if ok || GetForegroundWindow() == target {
             Ok(())
         } else {
             Err(RdcError::Backend(format!("Windows refused to bring {} ({}) to the foreground", w.app, w.title)))
         }
+    }
+}
+
+fn key_input(flags: windows::Win32::UI::Input::KeyboardAndMouse::KEYBD_EVENT_FLAGS) -> INPUT {
+    INPUT {
+        r#type: INPUT_KEYBOARD,
+        Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_MENU, wScan: 0, dwFlags: flags, time: 0, dwExtraInfo: 0 } },
+    }
+}
+
+/// Press and release Alt without anything else, which does not trigger a menu.
+fn tap_alt() {
+    let events = [key_input(Default::default()), key_input(KEYEVENTF_KEYUP)];
+    // SAFETY: fully initialised INPUT array, correct size.
+    unsafe {
+        SendInput(&events, std::mem::size_of::<INPUT>() as i32);
     }
 }
