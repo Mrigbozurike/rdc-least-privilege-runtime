@@ -12,7 +12,7 @@ use anyhow::Result;
 use std::path::PathBuf;
 
 #[cfg_attr(not(any(target_os = "macos", target_os = "linux")), allow(dead_code))]
-pub const LABEL: &str = "dev.bscott.rdc";
+pub const LABEL: &str = "dev.rdc.daemon";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Op {

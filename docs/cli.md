@@ -26,7 +26,7 @@ empty allowlist.
 ### `rdc service install | uninstall | status`
 
 Manage a per-user background service that runs `rdc serve`: a LaunchAgent on macOS
-(`dev.bscott.rdc`), a `systemd --user` unit on Linux. Not implemented on Windows yet. The service
+(`dev.rdc.daemon`), a `systemd --user` unit on Linux. Not implemented on Windows yet. The service
 runs the binary at the path `rdc service install` was invoked from, so install from the final
 location (on macOS, from inside `rdc.app`).
 

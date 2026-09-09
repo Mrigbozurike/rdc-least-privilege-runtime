@@ -23,7 +23,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-  <key>CFBundleIdentifier</key><string>dev.bscott.rdc</string>
+  <key>CFBundleIdentifier</key><string>dev.rdc.daemon</string>
   <key>CFBundleName</key><string>rdc</string>
   <key>CFBundleExecutable</key><string>rdc</string>
   <key>CFBundlePackageType</key><string>APPL</string>
@@ -45,11 +45,11 @@ if [ -f "$KC" ] && [ -s "$PASSFILE" ]; then
 fi
 if security find-identity -v -p codesigning | grep -q "\"$IDENTITY\""; then
   codesign --force --deep --options runtime --timestamp=none \
-    --identifier dev.bscott.rdc --sign "$IDENTITY" "$APP"
+    --identifier dev.rdc.daemon --sign "$IDENTITY" "$APP"
   echo "signed with $IDENTITY"
 elif [ "${RDC_ALLOW_ADHOC:-0}" = "1" ]; then
   echo "warning: signing ad-hoc; TCC grants will reset on every rebuild." >&2
-  codesign --force --deep --identifier dev.bscott.rdc --sign - "$APP"
+  codesign --force --deep --identifier dev.rdc.daemon --sign - "$APP"
 else
   echo "error: no usable code-signing identity '$IDENTITY' (keychain locked or identity missing)." >&2
   echo "       Run scripts/macos/make-signing-identity.sh once from Terminal on the Mac," >&2

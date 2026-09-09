@@ -51,6 +51,6 @@ which one failed.
 ## Logs
 
 - Daemon: `RDC_LOG=debug rdc serve …` (foreground); service logs are in `journalctl --user -u
-  dev.bscott.rdc` (Linux) or `~/Library/Application Support/rdc/serve.log` (macOS).
+  dev.rdc.daemon` (Linux) or `~/Library/Application Support/rdc/serve.log` (macOS).
 - Every request is logged with the resolved identity; rejections are logged at `warn`.
 - Client and MCP: `--log debug` or `RDC_LOG=debug`; goes to stderr, so it won't corrupt MCP stdio.

@@ -77,7 +77,7 @@ still need the Mac to sign.
 7. **Restart and verify**
 
    ```sh
-   launchctl kickstart -k gui/$(id -u)/dev.bscott.rdc
+   launchctl kickstart -k gui/$(id -u)/dev.rdc.daemon
    grep permission ~/Library/Application\ Support/rdc/serve.log | tail -2
    ~/Applications/rdc.app/Contents/MacOS/rdc doctor
    ```
@@ -89,7 +89,7 @@ still need the Mac to sign.
 
 ```sh
 cd ~/code/rdc && git pull && ./scripts/macos/bundle-and-sign.sh
-launchctl kickstart -k gui/$(id -u)/dev.bscott.rdc
+launchctl kickstart -k gui/$(id -u)/dev.rdc.daemon
 ```
 
 Because the certificate is unchanged, the permissions carry over. No prompts.
@@ -104,9 +104,9 @@ Because the certificate is unchanged, the permissions carry over. No prompts.
   the entry belongs to an older signature. Clear it and let the daemon re-prompt:
 
   ```sh
-  tccutil reset ScreenCapture dev.bscott.rdc
-  tccutil reset Accessibility dev.bscott.rdc
-  launchctl kickstart -k gui/$(id -u)/dev.bscott.rdc
+  tccutil reset ScreenCapture dev.rdc.daemon
+  tccutil reset Accessibility dev.rdc.daemon
+  launchctl kickstart -k gui/$(id -u)/dev.rdc.daemon
   ```
 
 - **Jump to a Settings pane from SSH** when you're driving the Mac remotely:
@@ -118,9 +118,8 @@ Because the certificate is unchanged, the permissions carry over. No prompts.
 
 - **Tailscale variants.** rdc finds the Tailscale LocalAPI for the App Store app, the standalone
   `Tailscale.app` (system extension) and open-source `tailscaled`. Nothing to configure.
-- **Bundle identifier.** `dev.bscott.rdc` is the bundle id and LaunchAgent label. Forks that
-  distribute their own builds should rename it in `scripts/macos/bundle-and-sign.sh` and
-  `src/service/mod.rs`.
+- **Bundle identifier.** `dev.rdc.daemon` is the bundle id and LaunchAgent label, defined in
+  `scripts/macos/bundle-and-sign.sh` and `src/service/mod.rs`.
 - **Screenshots** use the system `screencapture` tool, which is fast (about 0.3 s for a 2560×1440
   display). The CoreGraphics fallback is much slower on recent macOS.
 - **Window focus** activates the owning application; raising one specific window of a

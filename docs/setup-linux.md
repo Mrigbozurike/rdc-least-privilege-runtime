@@ -39,8 +39,8 @@ Capture and input go through xcb/x11rb. Window focus uses the generic xcap windo
 ```sh
 rdc doctor
 rdc serve --allow you@example.com          # foreground
-rdc service install                        # systemd --user unit dev.bscott.rdc.service
-journalctl --user -u dev.bscott.rdc -f
+rdc service install                        # systemd --user unit dev.rdc.daemon.service
+journalctl --user -u dev.rdc.daemon -f
 ```
 
 The unit is wanted by `graphical-session.target`, so it starts with your desktop session and

@@ -88,12 +88,12 @@ url = "http://host.tailnet.ts.net:7770"
   `~/Applications/rdc.app`; install the service from that path. Never ship ad-hoc: TCC keys
   grants to the code hash and forgets them on every rebuild.
 - Grant Screen Recording and Accessibility to `rdc.app` once. The daemon prompts on start.
-  If grants look stuck after a re-sign, run `tccutil reset ScreenCapture dev.bscott.rdc` and
-  `tccutil reset Accessibility dev.bscott.rdc`, then restart the service.
+  If grants look stuck after a re-sign, run `tccutil reset ScreenCapture dev.rdc.daemon` and
+  `tccutil reset Accessibility dev.rdc.daemon`, then restart the service.
 - Jump System Settings to a pane from SSH:
   `open "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"`.
-- The bundle identifier / LaunchAgent label is `dev.bscott.rdc` (forks may rename it).
-- Restart: `launchctl kickstart -k gui/$(id -u)/dev.bscott.rdc`. Logs:
+- The bundle identifier / LaunchAgent label is `dev.rdc.daemon`.
+- Restart: `launchctl kickstart -k gui/$(id -u)/dev.rdc.daemon`. Logs:
   `~/Library/Application Support/rdc/serve.log`.
 - Screenshots use `/usr/sbin/screencapture` (fast); the CoreGraphics fallback is slow on Tahoe.
 - Only humans can enter passwords or click TCC prompts; ask, don't work around.
