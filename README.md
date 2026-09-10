@@ -112,6 +112,7 @@ agents how to use rdc well.
 | [Troubleshooting](docs/troubleshooting.md) | symptoms and fixes |
 | [Security](SECURITY.md) | threat model and vulnerability reporting |
 | [Contributing](CONTRIBUTING.md) | development, testing, pull requests |
+| [Working on rdc](AGENTS.md) | design and security principles for contributors and coding agents |
 | [Changelog](CHANGELOG.md) | what changed in each release |
 
 ## How it stays safe

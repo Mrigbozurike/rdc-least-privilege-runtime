@@ -4,16 +4,24 @@
 
 use crate::proto::*;
 use std::ffi::c_void;
-use windows::Win32::Foundation::HWND;
+use windows::Win32::Foundation::{HWND, LPARAM, WPARAM};
 use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
+use windows::Win32::UI::HiDpi::{DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2, SetProcessDpiAwarenessContext};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    INPUT, INPUT_0, INPUT_KEYBOARD, INPUT_MOUSE, KEYBDINPUT, KEYEVENTF_KEYUP, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_MOVE,
-    MOUSEEVENTF_VIRTUALDESK, MOUSEINPUT, SendInput, VK_MENU,
+    INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_ABSOLUTE, MOUSEEVENTF_MOVE, MOUSEEVENTF_VIRTUALDESK, MOUSEINPUT, SendInput,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, GetForegroundWindow, GetSystemMetrics, GetWindowThreadProcessId, IsIconic, SM_CXVIRTUALSCREEN,
-    SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SW_RESTORE, SetForegroundWindow, ShowWindow,
+    SM_CYVIRTUALSCREEN, SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN, SMTO_ABORTIFHUNG, SMTO_BLOCK, SW_RESTORE,
+    SendMessageTimeoutW, SetForegroundWindow, ShowWindow, WM_NULL,
 };
+
+/// Make every metric and capture in this process use physical pixels, so `GetSystemMetrics`
+/// agrees with the physical geometry xcap reports. Call once at startup, before any UI call.
+pub fn set_dpi_aware() {
+    // SAFETY: plain Win32 call; failure (already set) is harmless.
+    let _ = unsafe { SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2) };
+}
 
 /// The virtual desktop rectangle in physical pixels (all monitors), as Windows reports it.
 pub fn virtual_screen() -> Rect {
@@ -73,7 +81,9 @@ fn hwnd(id: u64) -> HWND {
 ///
 /// Windows only lets the process that currently owns the foreground (or one it has handed the
 /// right to) call `SetForegroundWindow` successfully. Attaching our thread's input queue to the
-/// current foreground window's thread is the long-standing way to be allowed.
+/// current foreground window's thread is the long-standing way to be allowed. We refuse to
+/// attach to a thread that does not answer a message within 200 ms, because attaching to a hung
+/// thread can hang us too.
 pub fn focus(w: &Window) -> Result<()> {
     let target = hwnd(w.id);
     // SAFETY: plain Win32 calls on a window handle we got from enumeration; all of them tolerate
@@ -86,13 +96,15 @@ pub fn focus(w: &Window) -> Result<()> {
         let mut fg_pid = 0u32;
         let fg_thread = if fg.0.is_null() { 0 } else { GetWindowThreadProcessId(fg, Some(&mut fg_pid)) };
         let me = GetCurrentThreadId();
-        let attached = fg_thread != 0 && fg_thread != me && AttachThreadInput(me, fg_thread, true).as_bool();
+        let fg_responsive = !fg.0.is_null()
+            && SendMessageTimeoutW(fg, WM_NULL, WPARAM(0), LPARAM(0), SMTO_ABORTIFHUNG | SMTO_BLOCK, 200, None).0 != 0;
+        let attached =
+            fg_responsive && fg_thread != 0 && fg_thread != me && AttachThreadInput(me, fg_thread, true).as_bool();
         let _ = BringWindowToTop(target);
         let mut ok = SetForegroundWindow(target).as_bool();
-        if !ok {
+        if !ok && nudge_input() {
             // Windows grants foreground rights to the process that most recently sent input.
-            // A bare Alt press and release is the long-standing, harmless way to earn them.
-            tap_alt();
+            // A zero-length mouse move counts and changes no key or pointer state.
             let _ = BringWindowToTop(target);
             ok = SetForegroundWindow(target).as_bool();
         }
@@ -108,18 +120,14 @@ pub fn focus(w: &Window) -> Result<()> {
     }
 }
 
-fn key_input(flags: windows::Win32::UI::Input::KeyboardAndMouse::KEYBD_EVENT_FLAGS) -> INPUT {
-    INPUT {
-        r#type: INPUT_KEYBOARD,
-        Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: VK_MENU, wScan: 0, dwFlags: flags, time: 0, dwExtraInfo: 0 } },
-    }
-}
-
-/// Press and release Alt without anything else, which does not trigger a menu.
-fn tap_alt() {
-    let events = [key_input(Default::default()), key_input(KEYEVENTF_KEYUP)];
-    // SAFETY: fully initialised INPUT array, correct size.
-    unsafe {
-        SendInput(&events, std::mem::size_of::<INPUT>() as i32);
-    }
+/// Send a relative mouse move of zero pixels. Returns whether Windows accepted it.
+fn nudge_input() -> bool {
+    let input = INPUT {
+        r#type: INPUT_MOUSE,
+        Anonymous: INPUT_0 {
+            mi: MOUSEINPUT { dx: 0, dy: 0, mouseData: 0, dwFlags: MOUSEEVENTF_MOVE, time: 0, dwExtraInfo: 0 },
+        },
+    };
+    // SAFETY: fully initialised INPUT, correct size.
+    unsafe { SendInput(&[input], std::mem::size_of::<INPUT>() as i32) == 1 }
 }

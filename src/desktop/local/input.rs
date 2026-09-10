@@ -132,9 +132,12 @@ fn new_enigo() -> Result<Enigo> {
     // pin exactly one backend by pointing the other at a display that cannot exist.
     if cfg!(target_os = "linux") {
         if on_wayland() {
-            settings.x11_display = Some(":9999".into());
+            // Not a parseable X11 display name, so the connection attempt fails at parse time
+            // and can never reach a real server. enigo logs the failure; we filter its logs.
+            settings.x11_display = Some(":rdc-disabled".into());
         } else {
-            settings.wayland_display = Some("rdc-disabled".into());
+            // An absolute path is used verbatim as the socket path; this one cannot exist.
+            settings.wayland_display = Some("/nonexistent/rdc-disabled/wayland.sock".into());
         }
     }
     Enigo::new(&settings).map_err(|e| match e {
@@ -294,7 +297,8 @@ fn perform(e: &mut Enigo, m: &CoordMap, a: InputAction) -> Result<()> {
             result.and(released)
         }
         InputAction::Scroll { at, dx, dy } => {
-            if dx.abs() > MAX_SCROLL_STEPS || dy.abs() > MAX_SCROLL_STEPS {
+            let ok = -MAX_SCROLL_STEPS..=MAX_SCROLL_STEPS;
+            if !ok.contains(&dx) || !ok.contains(&dy) {
                 return Err(RdcError::BadRequest(format!(
                     "scroll steps must be within ±{MAX_SCROLL_STEPS} (got dx={dx}, dy={dy})"
                 )));
@@ -434,6 +438,13 @@ mod tests {
         assert!(m.check(0, -1).is_err());
         assert!(m.check(i32::MIN as i64, 0).is_err());
         assert!(m.check(i32::MAX as i64, i32::MAX as i64).is_err());
+    }
+
+    #[test]
+    fn scroll_bounds_reject_extremes_without_overflow() {
+        let ok = -MAX_SCROLL_STEPS..=MAX_SCROLL_STEPS;
+        assert!(ok.contains(&-100) && ok.contains(&100) && ok.contains(&0));
+        assert!(!ok.contains(&101) && !ok.contains(&i32::MIN) && !ok.contains(&i32::MAX));
     }
 
     #[test]

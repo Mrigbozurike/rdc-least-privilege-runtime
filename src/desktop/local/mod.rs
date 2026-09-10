@@ -9,6 +9,8 @@ mod win_hypr;
 mod win_mac;
 #[cfg(target_os = "windows")]
 mod win_windows;
+#[cfg(target_os = "windows")]
+pub use win_windows::set_dpi_aware;
 
 use super::{Desktop, find_window};
 use crate::proto::*;
@@ -100,7 +102,10 @@ impl Desktop for LocalDesktop {
         }
         #[cfg(target_os = "windows")]
         {
-            win_windows::focus(&w)
+            // Attaching to another thread's input queue can block; keep it off the executor.
+            tokio::task::spawn_blocking(move || win_windows::focus(&w))
+                .await
+                .map_err(|e| RdcError::Backend(format!("focus task failed: {e}")))?
         }
     }
 

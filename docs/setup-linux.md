@@ -40,9 +40,12 @@ Capture and input go through xcb/x11rb. Window focus uses the generic xcap windo
 
 ## Running
 
+Put the allowlist in `~/.config/rdc/config.toml` first (see [Configuration](configuration.md));
+the service reads it from there.
+
 ```sh
 rdc doctor
-rdc serve --allow you@example.com          # foreground
+rdc serve                                  # foreground test
 rdc service install                        # systemd --user unit dev.rdc.daemon.service
 journalctl --user -u dev.rdc.daemon -f
 ```

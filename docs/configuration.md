@@ -9,7 +9,9 @@ command line instead.
 | macOS | `~/Library/Application Support/rdc/config.toml` |
 | Windows | `%APPDATA%\rdc\config.toml` |
 
-`rdc doctor` prints the path it is using.
+`rdc doctor` prints the path it is using. Unknown keys anywhere in the file are errors, so a
+typo such as `caps` instead of `can` stops the daemon from starting rather than silently granting
+more than intended.
 
 ## Full example
 
@@ -27,14 +29,15 @@ allow = [
   { who = ["tag:ops", "bob@example.com"], can = ["view", "clipboard"] },
 ]
 
+# Optional. Extra names clients may use in the URL besides this node's Tailscale IPs,
+# MagicDNS name and hostname (e.g. a CNAME you point at it). Keep this above any
+# [[serve.grant]] block; TOML would otherwise attach it to the grant.
+# hosts = ["desk.internal.example"]
+
 # The same thing as a block, if you prefer one grant per section.
 [[serve.grant]]
 who = "tag:family"
 can = "all"
-
-# Optional. Extra names clients may use in the URL besides this node's Tailscale IPs,
-# MagicDNS name and hostname (e.g. a CNAME you point at it).
-# hosts = ["desk.internal.example"]
 
 [serve.audit]
 enabled = true                 # default
@@ -78,7 +81,8 @@ Each grant names one or more identities (`who`) and what they may do (`can`):
 
 `who` and `can` each take one value or a list. When several grants match the same caller, their
 capabilities are combined. A caller that lacks a capability gets `403 forbidden` with a message
-naming the missing one, and the attempt is written to the audit log.
+naming the missing one, and the attempt is written to the audit log. `whoami` and `/health` need
+a valid identity but no particular capability.
 
 ### Allowlist rules
 
@@ -107,8 +111,10 @@ Every authorized request and every rejection is appended as one JSON object per 
 ```
 
 `outcome` is `ok`, `denied` (host, identity or capability) or `error`. `action` describes the
-request without its payload: typed text is recorded only as a character count. The file is
-created mode 0600 and rotated by size. Read it with `rdc audit` (`-n`, `--json`, `--path`).
+request without its payload: typed text is recorded only as a character count. Key chords, window
+selectors and error messages are recorded as sent, with control characters replaced, so a hostile
+value cannot break the file or the terminal you read it in. The file and its rotated copies are
+mode 0600. Read it with `rdc audit` (`-n`, `--json`, `--path`).
 
 Default location: `~/.local/state/rdc/audit.jsonl` (Linux), `~/Library/Application
 Support/rdc/audit.jsonl` (macOS), `%LOCALAPPDATA%\rdc\audit.jsonl` (Windows).

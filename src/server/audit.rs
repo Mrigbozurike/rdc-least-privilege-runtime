@@ -34,6 +34,12 @@ pub struct Entry {
     pub ms: Option<u64>,
 }
 
+/// Replace control characters (terminal escapes, newlines) so a hostile chord or window title
+/// can neither break the JSON-lines framing nor drive the terminal of whoever reads the log.
+pub fn sanitize(s: &str) -> String {
+    s.chars().map(|c| if c.is_control() && c != '\t' { char::REPLACEMENT_CHARACTER } else { c }).take(512).collect()
+}
+
 impl Entry {
     pub fn new(peer: &str, id: Option<&Identity>, method: &str, path: &str) -> Self {
         Self {
@@ -43,7 +49,7 @@ impl Entry {
             node: id.map(|i| i.node.clone()),
             tags: id.map(|i| i.tags.clone()).unwrap_or_default(),
             method: method.to_string(),
-            path: path.to_string(),
+            path: sanitize(path),
             action: None,
             outcome: "ok".into(),
             status: 200,
@@ -52,22 +58,22 @@ impl Entry {
         }
     }
 
-    pub fn action(mut self, a: impl Into<String>) -> Self {
-        self.action = Some(a.into());
+    pub fn action(mut self, a: impl AsRef<str>) -> Self {
+        self.action = Some(sanitize(a.as_ref()));
         self
     }
 
-    pub fn denied(mut self, status: u16, why: impl Into<String>) -> Self {
+    pub fn denied(mut self, status: u16, why: impl AsRef<str>) -> Self {
         self.outcome = "denied".into();
         self.status = status;
-        self.detail = Some(why.into());
+        self.detail = Some(sanitize(why.as_ref()));
         self
     }
 
-    pub fn error(mut self, status: u16, why: impl Into<String>) -> Self {
+    pub fn error(mut self, status: u16, why: impl AsRef<str>) -> Self {
         self.outcome = "error".into();
         self.status = status;
-        self.detail = Some(why.into());
+        self.detail = Some(sanitize(why.as_ref()));
         self
     }
 
@@ -103,13 +109,8 @@ impl Audit {
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir)?;
         }
-        let file = OpenOptions::new().create(true).append(true).open(&path)?;
+        let file = open_private(&path)?;
         let written = file.metadata().map(|m| m.len()).unwrap_or(0);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
-        }
         Ok(Self {
             sink: Some(Mutex::new(Sink {
                 path: path.clone(),
@@ -163,10 +164,29 @@ impl Sink {
             }
             std::fs::rename(&self.path, rotated(1))?;
         }
-        self.file = OpenOptions::new().create(true).append(true).open(&self.path)?;
+        self.file = open_private(&self.path)?;
         self.written = 0;
         Ok(())
     }
+}
+
+/// Open (or create) the audit file for appending, readable by the owner only.
+fn open_private(path: &Path) -> std::io::Result<File> {
+    let mut opts = OpenOptions::new();
+    opts.create(true).append(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let file = opts.open(path)?;
+    #[cfg(unix)]
+    {
+        // `mode` only applies at creation; tighten an existing file too.
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+    }
+    Ok(file)
 }
 
 /// Read the last `n` entries of an audit file (skipping unparseable lines).
@@ -221,11 +241,25 @@ mod tests {
         }
         assert!(path.exists());
         assert!(dir.join("audit.jsonl.1").exists());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
+            assert_eq!(std::fs::metadata(dir.join("audit.jsonl.1")).unwrap().permissions().mode() & 0o777, 0o600);
+        }
         assert!(!dir.join("audit.jsonl.3").exists());
         let last = tail(&path, 10).unwrap();
         assert!(!last.is_empty());
         assert!(last.last().unwrap().action.as_deref().unwrap().starts_with("input.key"));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn control_characters_are_neutralised() {
+        let e = Entry::new("100.64.0.1", None, "POST", "/v1/act").action("input.key \u{1b}]52;c;evil\u{7}");
+        let a = e.action.unwrap();
+        assert!(!a.contains('\u{1b}') && !a.contains('\u{7}'));
+        assert!(a.starts_with("input.key "));
     }
 
     #[test]

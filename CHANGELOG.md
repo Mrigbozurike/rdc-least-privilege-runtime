@@ -5,6 +5,8 @@ builds the GitHub release body from the matching `## <version>` section.
 
 ## Unreleased
 
+## 0.3.0 — 2026-09-10
+
 ### Added
 - **Windows support, verified on Windows 11.** `rdc service install` creates an elevated Task
   Scheduler logon task that runs the daemon in the interactive session with a log file;

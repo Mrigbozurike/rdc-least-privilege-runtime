@@ -58,7 +58,9 @@ Two Windows facts shape the setup:
    New-NetFirewallRule -DisplayName "rdc (Tailscale)" -Direction Inbound -Protocol TCP -LocalPort 7770 -Action Allow
    ```
 
-4. **Install the task** from a normal (or admin) PowerShell:
+4. **Install the task** from a PowerShell **run as Administrator**, signed in as the account
+   that uses the desktop. The task is registered at the highest run level, which needs an
+   elevated installer; `rdc service install` refuses otherwise.
 
    ```powershell
    rdc doctor            # tailscaled, config, grants; display info is only real from the desktop
@@ -66,15 +68,18 @@ Two Windows facts shape the setup:
    rdc service status
    ```
 
+   The task is named `dev.rdc.daemon.<username>`, one per account. It is registered from an
+   XML definition with no battery restrictions, no run-time limit, and one instance at a time.
+
    Logs: `%LOCALAPPDATA%\rdc\serve.log`. Audit: `%LOCALAPPDATA%\rdc\audit.jsonl`.
 
 5. **Verify from the client machine**: `rdc -t <omen> whoami`, `shot`, `windows`, `focus`.
 
 ## Upgrading
 
-Copy the new `rdc.exe` over the old one after `rdc service uninstall` (which stops the running
-daemon), then `rdc service install` again. Or just run `service install` with the new binary in
-place; it stops any previous instance first.
+Copy the new `rdc.exe` over the old one after `rdc service uninstall` (which stops the daemon
+started from that binary and nothing else), then `rdc service install` again. Or run `service
+install` with the new binary in place; it stops the previous instance first.
 
 ## Things to know
 
@@ -84,8 +89,8 @@ place; it stops any previous instance first.
 - **Multi-monitor.** Pointer moves use `SendInput` normalised against the whole virtual desktop,
   so secondary displays should work, but this is untested until someone runs it with two screens.
 - **Focus.** Windows only lets a process take the foreground if it recently sent input. rdc
-  attaches to the foreground thread's input queue and, if that is refused, taps Alt once and
-  retries. This is the same trick every remote-control tool uses.
+  attaches to the foreground thread's input queue (skipping threads that don't respond within
+  200 ms) and, if that is refused, sends a zero-length mouse move and retries.
 - **SSH for administration.** Enable OpenSSH Server (`Add-WindowsCapability -Online -Name
   OpenSSH.Server~~~~0.0.1.0`), put your key in `C:\ProgramData\ssh\administrators_authorized_keys`
   for admin accounts, and set PowerShell as the default shell via

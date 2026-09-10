@@ -82,7 +82,7 @@ jobs:
           out=rdc-${{ matrix.name }}
           mkdir -p dist/$out
           cp target/${{ matrix.target }}/release/${{ matrix.bin }} dist/$out/
-          cp README.md LICENSE SECURITY.md CONTRIBUTING.md THIRD_PARTY_LICENSES.html dist/$out/
+          cp README.md LICENSE SECURITY.md CONTRIBUTING.md CHANGELOG.md THIRD_PARTY_LICENSES.html dist/$out/
           cp -r skills docs dist/$out/
           if [ "${{ runner.os }}" = "Windows" ]; then
             (cd dist && 7z a -tzip $out.zip $out >/dev/null)

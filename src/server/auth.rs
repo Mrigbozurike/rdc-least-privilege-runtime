@@ -218,8 +218,13 @@ pub async fn middleware(
         }
         Err(e) => {
             tracing::warn!(peer = %peer_ip, error = %e, "rejected");
-            state.audit.record(super::audit::Entry::new(&peer_ip, None, &method, &path).denied(403, e.message()));
-            error_response(&e)
+            let resp = error_response(&e);
+            let entry = super::audit::Entry::new(&peer_ip, None, &method, &path);
+            state.audit.record(match e {
+                RdcError::Unauthorized(_) | RdcError::Forbidden(_) => entry.denied(resp.status().as_u16(), e.message()),
+                _ => entry.error(resp.status().as_u16(), e.message()),
+            });
+            resp
         }
     }
 }

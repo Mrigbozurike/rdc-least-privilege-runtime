@@ -10,6 +10,7 @@ use std::path::PathBuf;
 pub const DEFAULT_PORT: u16 = 7770;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Config {
     #[serde(default)]
     pub serve: ServeConfig,
@@ -18,6 +19,7 @@ pub struct Config {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ServeConfig {
     #[serde(default = "default_port")]
     pub port: u16,
@@ -70,6 +72,7 @@ pub enum AllowEntry {
 /// (`studio-mac`), tags (`tag:ops`), or `*`. `can` is `"all"` (default), one capability, or a
 /// list of `view`, `input`, `clipboard`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Grant {
     pub who: OneOrMany,
     #[serde(default)]
@@ -184,6 +187,7 @@ pub fn parse_allow_flag(s: &str) -> Result<ResolvedGrant> {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AuditConfig {
     /// Write one JSON line per request. Default on.
     #[serde(default = "yes")]
@@ -227,6 +231,7 @@ pub fn state_dir() -> PathBuf {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Target {
     pub url: String,
 }
@@ -304,6 +309,27 @@ mod tests {
         assert_eq!(g[2].who, vec!["tag:ops".to_string(), "bob@example.com".to_string()]);
         assert_eq!(g[2].caps, caps(&[Capability::View, Capability::Clipboard]));
         assert_eq!(g[3].caps.len(), 3);
+    }
+
+    #[test]
+    fn rejects_unknown_fields_instead_of_granting_everything() {
+        // `caps` instead of `can` must not silently become full control.
+        assert!(
+            toml::from_str::<Config>(
+                r#"[serve]
+allow = [{ who = "monitor-bot", caps = ["view"] }]"#
+            )
+            .is_err()
+        );
+        assert!(
+            toml::from_str::<Config>(
+                r#"[[serve.grant]]
+who = "monitor-bot"
+caps = "view""#
+            )
+            .is_err()
+        );
+        assert!(toml::from_str::<Config>("[serve]\nalow = ['x']").is_err());
     }
 
     #[test]

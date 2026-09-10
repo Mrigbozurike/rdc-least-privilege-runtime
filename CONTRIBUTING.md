@@ -5,6 +5,8 @@ focused pull requests are all welcome.
 
 ## Before you start
 
+- Read [AGENTS.md](AGENTS.md): the design and security principles changes are reviewed against.
+
 - For anything beyond a small fix, open an issue first so we can agree on the approach. The
   [architecture doc](docs/architecture.md) explains how the pieces fit.
 - Security problems: do **not** open a public issue. See [SECURITY.md](SECURITY.md).

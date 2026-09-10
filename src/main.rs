@@ -166,18 +166,24 @@ enum ServiceOp {
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
-    let filter = tracing_subscriber::EnvFilter::try_new(format!("{},enigo=error", cli.log))
-        .unwrap_or_else(|_| "info,enigo=error".into());
+    // enigo logs its own connection attempts at ERROR (we deliberately point unused backends at
+    // invalid endpoints); real input failures still surface as returned errors.
+    let filter = tracing_subscriber::EnvFilter::try_new(format!("{},enigo=off", cli.log))
+        .unwrap_or_else(|_| "info,enigo=off".into());
+    let to_file = cli.log_file.is_some();
     match &cli.log_file {
         Some(p) => {
             if let Some(dir) = p.parent() {
                 std::fs::create_dir_all(dir).ok();
             }
-            let file = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(p)
-                .with_context(|| format!("opening log file {}", p.display()))?;
+            let mut opts = std::fs::OpenOptions::new();
+            opts.create(true).append(true);
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::OpenOptionsExt;
+                opts.mode(0o600);
+            }
+            let file = opts.open(p).with_context(|| format!("opening log file {}", p.display()))?;
             tracing_subscriber::fmt()
                 .with_env_filter(filter)
                 .with_ansi(false)
@@ -186,6 +192,19 @@ async fn main() -> Result<()> {
         }
         None => tracing_subscriber::fmt().with_env_filter(filter).with_writer(std::io::stderr).init(),
     }
+    let result = run(cli).await;
+    if let Err(e) = &result
+        && to_file
+    {
+        // Otherwise a headless launch (Windows scheduled task) dies with nothing in the log.
+        tracing::error!("fatal: {e:#}");
+    }
+    result
+}
+
+async fn run(cli: Cli) -> Result<()> {
+    #[cfg(target_os = "windows")]
+    desktop::local::set_dpi_aware();
     let cfg = config::load()?;
 
     match cli.cmd {
@@ -242,9 +261,10 @@ async fn main() -> Result<()> {
             } else {
                 println!("{:<24} {:<28} {:<7} {:<4} action", "time", "who", "outcome", "code");
                 for e in &entries {
-                    let who = e.login.clone().or(e.node.clone()).unwrap_or_else(|| e.peer.clone());
-                    let what = e.action.clone().unwrap_or_else(|| format!("{} {}", e.method, e.path));
-                    let detail = e.detail.as_deref().map(|d| format!("  ({d})")).unwrap_or_default();
+                    let clean = server::audit::sanitize;
+                    let who = clean(&e.login.clone().or(e.node.clone()).unwrap_or_else(|| e.peer.clone()));
+                    let what = clean(&e.action.clone().unwrap_or_else(|| format!("{} {}", e.method, e.path)));
+                    let detail = e.detail.as_deref().map(|d| format!("  ({})", clean(d))).unwrap_or_default();
                     println!("{:<24} {:<28} {:<7} {:<4} {what}{detail}", e.ts, who, e.outcome, e.status);
                 }
                 if entries.is_empty() {

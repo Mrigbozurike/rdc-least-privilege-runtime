@@ -78,9 +78,9 @@ live in `src/proto.rs` and are shared by both sides.
 5. Tagged nodes have their creator's login stripped; they are identified by tags and node name
    only. The identity is matched against the grants and cached for 30 s; the union of the
    matching grants' capabilities (`view`, `input`, `clipboard`) travels with the identity.
-6. Each route requires one capability: state and screenshot need `view`, `/act` needs `input`
-   (or `clipboard` for clipboard writes), `/clipboard` needs `clipboard`. Missing capability →
-   `403 forbidden`.
+6. Each desktop route requires one capability: state and screenshot need `view`, `/act` needs
+   `input` (or `clipboard` for clipboard writes), `/clipboard` needs `clipboard`. Missing
+   capability → `403 forbidden`. `/v1/whoami` and `/health` need only a valid identity.
 7. Every request and rejection is appended to the audit log (`src/server/audit.rs`) as a JSON
    line with identity, action summary, outcome and duration. Rejections are recorded by the
    middleware; authorized requests by the route handlers, after they know the outcome.
@@ -96,7 +96,7 @@ refused before any modifier is pressed. A drag always releases the button even i
 | Linux Wayland | xcap: portal Screenshot → wlr-screencopy | enigo `wayland` | `hyprctl` on Hyprland; xcap list elsewhere | systemd --user |
 | Linux X11 | xcap (xcb) | enigo `x11rb` | xcap list | systemd --user |
 | macOS | `screencapture` CLI (fast), xcap CoreGraphics fallback | enigo (CGEvent) | xcap list, `NSRunningApplication.activate` | LaunchAgent, signed `.app` |
-| Windows | xcap (GDI/WGC) | enigo (`SendInput`) | xcap list, focus not implemented | not implemented |
+| Windows | xcap (GDI/WGC) | `SendInput` over the virtual desktop | xcap list, `SetForegroundWindow` | elevated Task Scheduler logon task |
 
 ## MCP layer
 

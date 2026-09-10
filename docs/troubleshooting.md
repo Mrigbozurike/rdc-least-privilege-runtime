@@ -39,7 +39,7 @@ which one failed.
 | Symptom | Cause | Fix |
 |---|---|---|
 | macOS: `permission denied: Accessibility` or clicks do nothing | Accessibility not granted | grant to `rdc.app`, restart daemon |
-| Wayland: `no way to move the mouse` | compositor lacks wlr virtual pointer (GNOME, KDE) | untested paths; please report |
+| Wayland: `no way to move the mouse` | compositor lacks the wlr virtual pointer protocol (GNOME, KDE) | not supported yet; capture works, input does not (issue #2) |
 | clicks land in the wrong place | coordinates from a stale or differently sized screenshot; or CLI given image pixels instead of desktop points | take a new screenshot; use `rdc mcp`, or convert as in [CLI reference](cli.md#mapping-a-screenshot-pixel-to-a-click) |
 | `key`: `"foo" is not a modifier` | typo in the chord | see the chord grammar in the CLI reference |
 | Windows: input ignored or focus refused for an elevated app | UIPI; the daemon runs at lower integrity | use `rdc service install` (task runs elevated) rather than starting `rdc serve` from a normal shell |
