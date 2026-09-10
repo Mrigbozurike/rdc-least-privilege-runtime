@@ -110,7 +110,7 @@ agents how to use rdc well.
 
 ## Documentation
 
-The same pages are published as a site at [blog.bscott.me/rdc](https://blog.bscott.me/rdc/).
+The same pages are published as a site at [bscott.github.io/rdc](https://bscott.github.io/rdc/).
 
 | | |
 |---|---|
