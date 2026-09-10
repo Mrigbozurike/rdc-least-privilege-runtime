@@ -275,7 +275,7 @@ and the platform behaviour that determined how it is installed.
 | Linux, Wayland | portal Screenshot, then wlr-screencopy | wlr virtual pointer and keyboard | `hyprctl` on Hyprland | systemd user unit | GNOME and KDE lack the wlr input protocols: capture works there, input does not yet |
 | Linux, X11 | xcb | XTEST | window list only | systemd user unit | xcap reports geometry divided by DPI scale; input wants raw pixels, so rdc multiplies back |
 | macOS | `screencapture` (about 0.3 s); CoreGraphics fallback is slow on recent macOS | CGEvent via enigo | xcap list, NSRunningApplication | LaunchAgent inside a signed `rdc.app` | Screen Recording and Accessibility grants are keyed to the code signature; unsigned builds lose them on every rebuild |
-| Windows | GDI / Graphics Capture | `SendInput` normalised over the virtual desktop | xcap list, SetForegroundWindow | elevated Task Scheduler logon task | A service or SSH session is session 0 with no display, and non-elevated processes cannot send input to elevated windows |
+| Windows | GDI / Graphics Capture | `SendInput` normalised over the virtual desktop | xcap list, SetForegroundWindow | Task Scheduler logon task at standard integrity (`--elevated` opts into the highest run level) | A service or SSH session is session 0 with no display; a non-elevated daemon cannot send input to elevated windows, which is the documented trade-off |
 
 ## What gets recorded
 

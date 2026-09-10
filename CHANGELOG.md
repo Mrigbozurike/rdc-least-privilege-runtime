@@ -6,6 +6,13 @@ builds the GitHub release body from the matching `## <version>` section.
 ## Unreleased
 
 ### Changed
+- **Windows: the scheduled task no longer runs elevated by default.** `rdc service install`
+  now registers the logon task at `LeastPrivilege` run level, so the daemon holds only the
+  user's standard token and the install itself no longer needs an Administrator shell. Input
+  aimed at elevated windows is dropped by UIPI in this mode; pass `rdc service install
+  --elevated` (from an elevated PowerShell) to get the previous `HighestAvailable` behaviour.
+  Existing installs keep their run level until reinstalled.
+- Windows setup docs scope the firewall rule to the tailnet (`100.64.0.0/10`, Tailscale interface).
 - Docs: the configuration guide now shows the Tailscale access-policy rule (`grants` and `acls`
   forms) that must accompany rdc's grants, and the troubleshooting table distinguishes a
   policy timeout from an rdc 403.

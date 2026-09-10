@@ -68,6 +68,10 @@ enum Cmd {
     Service {
         #[arg(value_enum)]
         op: ServiceOp,
+        /// Windows: run the daemon elevated (highest run level) so it can click and type into
+        /// elevated windows. The default is a standard-integrity task. Ignored elsewhere.
+        #[arg(long)]
+        elevated: bool,
     },
     /// Show the most recent entries of this machine's audit log.
     Audit {
@@ -237,7 +241,7 @@ async fn run(cli: Cli) -> Result<()> {
             };
             mcp::run(desktop, cli.target.clone(), max).await
         }
-        Cmd::Service { op } => {
+        Cmd::Service { op, elevated } => {
             if matches!(op, ServiceOp::Install) && cfg.serve.grants()?.is_empty() {
                 anyhow::bail!(
                     "[serve].allow in {} is empty; the service would start `rdc serve` with nobody allowed and exit. \
@@ -245,8 +249,11 @@ async fn run(cli: Cli) -> Result<()> {
                     config::path().display()
                 );
             }
+            if elevated && (!cfg!(windows) || !matches!(op, ServiceOp::Install)) {
+                eprintln!("warning: --elevated only applies to `service install` on Windows; ignoring");
+            }
             service::run(match op {
-                ServiceOp::Install => service::Op::Install,
+                ServiceOp::Install => service::Op::Install { elevated },
                 ServiceOp::Uninstall => service::Op::Uninstall,
                 ServiceOp::Status => service::Op::Status,
             })

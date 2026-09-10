@@ -14,7 +14,7 @@ pub fn run(op: Op) -> Result<()> {
     let unit = unit_path()?;
     let name = format!("{LABEL}.service");
     match op {
-        Op::Install => {
+        Op::Install { .. } => {
             let bin = service_binary()?;
             std::fs::create_dir_all(unit.parent().unwrap())?;
             let text = format!(
