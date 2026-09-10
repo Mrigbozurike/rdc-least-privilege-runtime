@@ -236,13 +236,17 @@ fn union_bounds(displays: &[Display]) -> Rect {
 
 fn move_abs(e: &mut Enigo, m: &CoordMap, x: i64, y: i64) -> Result<()> {
     let (mx, my) = m.map(x, y)?;
-    #[cfg(target_os = "windows")]
-    {
-        let _ = e;
-        // enigo normalises against the primary monitor only; use the whole virtual desktop.
-        return super::win_windows::move_absolute(mx, my);
-    }
-    #[cfg(not(target_os = "windows"))]
+    send_move(e, mx, my)
+}
+
+/// enigo normalises absolute moves against the primary monitor only; use the whole virtual desktop.
+#[cfg(target_os = "windows")]
+fn send_move(_e: &mut Enigo, mx: i32, my: i32) -> Result<()> {
+    super::win_windows::move_absolute(mx, my)
+}
+
+#[cfg(not(target_os = "windows"))]
+fn send_move(e: &mut Enigo, mx: i32, my: i32) -> Result<()> {
     e.move_mouse(mx, my, Coordinate::Abs).map_err(ie)
 }
 

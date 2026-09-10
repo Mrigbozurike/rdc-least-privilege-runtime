@@ -80,8 +80,10 @@ printf '%s\n' \
 - No new network listeners, no shell execution, no credentials in the tree.
 - Prefer returning `RdcError` over panicking in daemon paths.
 - Platform-specific code goes behind `cfg(target_os = …)` in its own module; keep the common
-  path compiling on all three OSes (`cargo check --target x86_64-pc-windows-gnu` and
-  `--target aarch64-apple-darwin` work from Linux after `rustup target add`).
+  path compiling on all three OSes. From Linux, after `rustup target add x86_64-pc-windows-gnu
+  aarch64-apple-darwin`, run `cargo clippy --target <triple> --all-targets -- -D warnings` for
+  both; CI runs clippy with warnings as errors on every platform, and a lint that only fires on
+  one of them will fail the build there.
 
 ## License and sign-off
 
