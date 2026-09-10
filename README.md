@@ -110,6 +110,8 @@ agents how to use rdc well.
 
 ## Documentation
 
+The same pages are published as a site at [blog.bscott.me/rdc](https://blog.bscott.me/rdc/).
+
 | | |
 |---|---|
 | [Install](docs/install.md) | release binaries, `cargo install`, build dependencies per OS |

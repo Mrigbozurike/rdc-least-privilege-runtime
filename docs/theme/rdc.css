@@ -1,0 +1,8 @@
+/* Colors used by the inline diagrams on how-it-works.md, per mdBook theme. */
+:root, .light { --accent: #0E7C7B; --accent-soft: #D7ECEA; --ident: #B7791F; --deny: #B3261E; --paper-2: #EBEFF4; }
+.rust  { --accent: #0E7C7B; --accent-soft: #E3EDE8; --ident: #9C6516; --deny: #A62A22; --paper-2: #EDE6DA; }
+.coal, .navy, .ayu { --accent: #4FB8B4; --accent-soft: #143634; --ident: #E0A84A; --deny: #F07A72; --paper-2: #2A3440; }
+.rdc-fig { margin: 1.5em 0; }
+.rdc-fig svg { width: 100%; height: auto; display: block; color: var(--fg); }
+.rdc-fig figcaption { font-size: 0.9em; color: var(--fg); opacity: 0.8; margin-top: 0.6em; }
+table { font-variant-numeric: tabular-nums; }

@@ -1,0 +1,21 @@
+[book]
+title = "rdc"
+description = "Remote desktop control for AI agents over Tailscale"
+authors = ["rdc contributors"]
+language = "en"
+src = "docs"
+
+[build]
+build-dir = "target/book"
+
+[output.html]
+git-repository-url = "https://github.com/bscott/rdc"
+edit-url-template = "https://github.com/bscott/rdc/edit/main/{path}"
+site-url = "/rdc/"
+additional-css = ["docs/theme/rdc.css"]
+default-theme = "light"
+preferred-dark-theme = "navy"
+
+[output.html.fold]
+enable = true
+level = 1
