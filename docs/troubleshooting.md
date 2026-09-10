@@ -16,7 +16,7 @@ which one failed.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| connection refused / timeout | daemon not running, wrong host, or you're not on the tailnet | `tailscale ping HOST`; check `rdc service status` on the target |
+| connection refused / timeout | daemon not running, wrong host, you're not on the tailnet, or the Tailscale policy blocks tcp/7770 | `tailscale ping HOST`; check `rdc service status` on the target; add a policy rule for `tcp:7770` (see [Configuration](configuration.md#the-tailscale-side-let-the-traffic-through)) |
 | `403 … is not in the allowlist` | whois succeeded but you're not allowed | add your login/node/tag; `rdc -t HOST whoami` shows what the daemon sees once allowed, the 403 message shows it when not |
 | `403 … is not a Tailscale address` | request arrived from a non-tailnet IP | use the Tailscale hostname or 100.x address |
 | `403 forbidden: … may not use \`input\`` | your grant is limited to some capabilities | widen `can` in the grant on the daemon side; `rdc -t HOST whoami` shows your `caps` |

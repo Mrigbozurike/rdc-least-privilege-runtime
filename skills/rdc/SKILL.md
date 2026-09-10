@@ -122,6 +122,7 @@ input); X11 via xcap.
 | `421 ... unexpected host` | URL host isn't a name the daemon knows for itself | use the Tailscale name/IP or add to `[serve].hosts` |
 | `400 ... outside the desktop` / `scroll steps` | out-of-range coordinates or scroll | take a new screenshot; scroll ≤100 steps |
 | `not a Tailscale address` / connection refused | connecting from outside the tailnet, or daemon bound elsewhere | use the Tailscale hostname; check `rdc doctor` on the target |
+| connection times out | Tailscale access policy blocks tcp/7770 to that machine | a policy rule (`grants`/`acls`) must allow your login or tag to reach the host on `tcp:7770`; rdc's own allowlist is checked only after the packet arrives |
 | Screenshot is only the wallpaper (macOS) | Screen Recording not granted to *this* build | re-grant; check `rdc doctor`; avoid ad-hoc signing |
 | Input does nothing (macOS) | Accessibility not granted | grant, restart daemon |
 | Click lands at the wrong place | coordinates from a stale or differently sized screenshot | take a new screenshot, click from it |

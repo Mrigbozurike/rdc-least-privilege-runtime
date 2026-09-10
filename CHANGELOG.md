@@ -5,6 +5,11 @@ builds the GitHub release body from the matching `## <version>` section.
 
 ## Unreleased
 
+### Changed
+- Docs: the configuration guide now shows the Tailscale access-policy rule (`grants` and `acls`
+  forms) that must accompany rdc's grants, and the troubleshooting table distinguishes a
+  policy timeout from an rdc 403.
+
 ## 0.3.0 — 2026-09-10
 
 ### Added

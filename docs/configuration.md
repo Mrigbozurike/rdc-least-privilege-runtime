@@ -84,6 +84,64 @@ capabilities are combined. A caller that lacks a capability gets `403 forbidden`
 naming the missing one, and the attempt is written to the audit log. `whoami` and `/health` need
 a valid identity but no particular capability.
 
+### The Tailscale side: let the traffic through
+
+rdc's grants decide what an identity may do. Your **Tailscale access policy** decides whether that
+identity's packets reach port 7770 at all. Both have to agree. If the policy blocks the
+connection, the client sees a timeout, not a 403, and nothing appears in rdc's audit log because
+nothing arrived.
+
+Tailscale's default policy allows everything, so a new tailnet needs no change. If you have
+tightened it, add a rule. The cleanest pattern is to tag the machines that run `rdc serve` (for
+example `tag:rdc-host`) and open the port from the people and tags you name in rdc's grants.
+
+Current syntax (`grants`), in the policy file at
+[login.tailscale.com/admin/acls](https://login.tailscale.com/admin/acls):
+
+```jsonc
+{
+  "tagOwners": {
+    "tag:rdc-host": ["autogroup:admin"],
+  },
+  "grants": [
+    // people who may control rdc hosts
+    { "src": ["alice@example.com", "bob@example.com"], "dst": ["tag:rdc-host"], "ip": ["tcp:7770"] },
+    // a monitoring tag that only screenshots (rdc grant: can = "view")
+    { "src": ["tag:monitor"], "dst": ["tag:rdc-host"], "ip": ["tcp:7770"] },
+  ],
+}
+```
+
+Older syntax (`acls`), if your policy still uses it:
+
+```jsonc
+"acls": [
+  { "action": "accept", "src": ["alice@example.com", "tag:monitor"], "dst": ["tag:rdc-host:7770"] },
+]
+```
+
+Then tag the controlled machine (`tailscale up --advertise-tags=tag:rdc-host` or from the admin
+console) and write the matching rdc grants:
+
+```toml
+[serve]
+allow = [
+  "alice@example.com",
+  "bob@example.com",
+  { who = "tag:monitor", can = "view" },
+]
+```
+
+Notes:
+
+- `src` names in the policy and `who` names in rdc are the same identities: tailnet logins and
+  tags. Node names work in rdc but not as a policy `src`; use tags for machines.
+- If the rdc host stays a user-owned device instead of a tagged one, use the owner's login as
+  `dst` (all of that user's devices), or list the machine under `hosts` in the policy.
+- SSH and rdc are separate ports. Opening 7770 does not open 22, and rdc never needs 22.
+- Check the network path before blaming rdc: `tailscale ping <host>` from the client, then
+  `rdc -t <host> whoami`. A timeout is the policy; a 403 is rdc.
+
 ### Allowlist rules
 
 Each request's peer IP is resolved with `tailscaled`'s `whois`. The result has a node name and
