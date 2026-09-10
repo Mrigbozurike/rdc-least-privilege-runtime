@@ -132,6 +132,48 @@ allow = [
 ]
 ```
 
+### Policy rules for the examples on this page
+
+The full example at the top of this page has four grants. This is the policy that lets each of
+them through, assuming the controlled machine is tagged `tag:rdc-host`:
+
+| rdc grant (`config.toml`) | Who the policy must allow | Policy `grants` entry |
+|---|---|---|
+| `"you@example.com"` | that login | `{ "src": ["you@example.com"], "dst": ["tag:rdc-host"], "ip": ["tcp:7770"] }` |
+| `{ who = "monitor-bot", can = "view" }` | a specific device, named by its node name in rdc | policies can't name a node as `src`; give the device a tag (`tag:monitor`) and use `{ "src": ["tag:monitor"], "dst": ["tag:rdc-host"], "ip": ["tcp:7770"] }`, or list its Tailscale IP under `"hosts"` and use that name as `src` |
+| `{ who = ["tag:ops", "bob@example.com"], can = ["view", "clipboard"] }` | the tag and the login | `{ "src": ["tag:ops", "bob@example.com"], "dst": ["tag:rdc-host"], "ip": ["tcp:7770"] }` |
+| `[[serve.grant]] who = "tag:family"` | the tag | `{ "src": ["tag:family"], "dst": ["tag:rdc-host"], "ip": ["tcp:7770"] }` |
+
+Or, as one policy fragment covering all four (plus the tag definitions the rules need):
+
+```jsonc
+{
+  "tagOwners": {
+    "tag:rdc-host": ["autogroup:admin"],
+    "tag:monitor":  ["autogroup:admin"],
+    "tag:ops":      ["autogroup:admin"],
+    "tag:family":   ["autogroup:admin"],
+  },
+  "grants": [
+    { "src": ["you@example.com", "bob@example.com", "tag:ops", "tag:monitor", "tag:family"],
+      "dst": ["tag:rdc-host"],
+      "ip":  ["tcp:7770"] },
+  ],
+}
+```
+
+Legacy `acls` equivalent of that single rule:
+
+```jsonc
+{ "action": "accept",
+  "src": ["you@example.com", "bob@example.com", "tag:ops", "tag:monitor", "tag:family"],
+  "dst": ["tag:rdc-host:7770"] }
+```
+
+The policy only opens the port. What each caller may then do (`view`, `input`, `clipboard`) is
+still decided by the rdc grant, so a `tag:monitor` device reaches the daemon but gets `403` on
+anything but screenshots.
+
 Notes:
 
 - `src` names in the policy and `who` names in rdc are the same identities: tailnet logins and

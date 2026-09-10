@@ -64,10 +64,18 @@ rdc doctor
 rdc serve
 ```
 
-If your Tailscale policy is not the permissive default, also allow the traffic there: a rule
-letting your login reach the machine on `tcp:7770`. The
-[configuration guide](docs/configuration.md#the-tailscale-side-let-the-traffic-through) shows
-the exact snippet. `rdc doctor` tells you if a permission or `tailscaled` is missing. When it works, install it as a
+If your Tailscale policy is not the permissive default, also allow the traffic there. For the
+config above, with the controlled machine tagged `tag:rdc-host` and the monitor device tagged
+`tag:monitor`:
+
+```jsonc
+"grants": [
+  { "src": ["you@example.com", "tag:monitor"], "dst": ["tag:rdc-host"], "ip": ["tcp:7770"] },
+]
+```
+
+The [configuration guide](docs/configuration.md#the-tailscale-side-let-the-traffic-through) maps
+every grant example to its policy rule, in both `grants` and legacy `acls` syntax. `rdc doctor` tells you if a permission or `tailscaled` is missing. When it works, install it as a
 background service so it survives reboots: `rdc service install` (macOS LaunchAgent or Linux
 systemd user service). The service reads the same config file, which is why the allowlist goes
 there rather than on the command line. macOS needs two one-time permission grants; follow
