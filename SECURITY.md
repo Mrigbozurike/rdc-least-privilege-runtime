@@ -30,6 +30,9 @@ TLS: the tailnet's WireGuard layer provides encryption and the identity.
   the rdc port at all.
 - `whois` is only as accurate as `tailscaled`. If the local daemon is unavailable, rdc falls back
   to the `tailscale` CLI; if neither works, every request is rejected.
+- The config file is the allowlist. On Unix the daemon refuses to start if `config.toml` or its
+  directory is owned by someone else or writable by group/others, since editing it is
+  equivalent to desktop access; `RDC_INSECURE_CONFIG=1` overrides with a warning.
 - `--dev-loopback` binds 127.0.0.1 and disables authentication for loopback connections. It is
   for local development and must never be used on a shared machine or forwarded.
 - MCP clients talk to `rdc mcp` over stdio on the operator's machine. The operator's agent

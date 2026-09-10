@@ -13,6 +13,10 @@ builds the GitHub release body from the matching `## <version>` section.
 ## 0.3.0 — 2026-09-10
 
 ### Added
+- **Config file permission check (Unix).** `rdc serve` and `rdc service install` refuse to run
+  when `config.toml` or its directory is owned by another user or writable by group/others,
+  because editing the allowlist is equivalent to desktop access. `rdc doctor` reports the check
+  as `config perms`; `RDC_INSECURE_CONFIG=1` downgrades the refusal to a warning.
 - **Windows support, verified on Windows 11.** `rdc service install` creates an elevated Task
   Scheduler logon task that runs the daemon in the interactive session with a log file;
   `service uninstall` stops the running daemon. Window `focus` implemented (foreground-thread
