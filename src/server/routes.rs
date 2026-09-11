@@ -4,8 +4,8 @@ use crate::desktop::remote::{H_RECT, H_SIZE};
 use crate::proto::*;
 use axum::{
     Json, Router,
-    extract::{Extension, Query, State},
-    http::{HeaderMap, HeaderValue, StatusCode, header},
+    extract::{Extension, Query, State, rejection::JsonRejection},
+    http::{HeaderMap, HeaderValue, StatusCode, Uri, header},
     middleware,
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -55,7 +55,8 @@ pub fn router(state: AppState) -> Router {
         .route("/v1/act", post(act_h))
         .route("/v1/clipboard", get(clipboard_h))
         .route("/v1/whoami", get(whoami_h))
-        .route("/health", get(|| async { "ok" }))
+        .route("/health", get(health_h))
+        .fallback(not_found_h)
         .layer(middleware::from_fn_with_state(state.clone(), auth::middleware))
         .with_state(state)
 }
@@ -90,15 +91,29 @@ async fn screenshot_h(
     Extension(id): Extension<Identity>,
     Query(q): Query<ShotQuery>,
 ) -> Response {
-    let display = match q.display.as_deref().map(str::parse::<DisplayTarget>) {
-        Some(Err(e)) => return auth::error_response(&RdcError::BadRequest(e)),
-        Some(Ok(d)) => d,
-        None => DisplayTarget::All,
-    };
-    let format = match q.format.as_deref() {
-        None | Some("png") => ImageFormat::Png,
-        Some("jpg") | Some("jpeg") => ImageFormat::Jpeg,
-        Some(o) => return auth::error_response(&RdcError::BadRequest(format!("bad format {o:?}"))),
+    let parsed = (|| -> Result<(DisplayTarget, ImageFormat)> {
+        let display = match q.display.as_deref() {
+            None => DisplayTarget::All,
+            Some(d) => d.parse().map_err(RdcError::BadRequest)?,
+        };
+        let format = match q.format.as_deref() {
+            None | Some("png") => ImageFormat::Png,
+            Some("jpg") | Some("jpeg") => ImageFormat::Jpeg,
+            Some(o) => return Err(RdcError::BadRequest(format!("bad format {o:?}"))),
+        };
+        Ok((display, format))
+    })();
+    let (display, format) = match parsed {
+        Ok(v) => v,
+        Err(e) => {
+            // Validation failures are audited too; the request was authorized, so it counts.
+            s.audit.record(
+                Entry::new(&id.ip, Some(&id), "GET", "/v1/screenshot")
+                    .action(format!("screenshot {:?} {:?}", q.display, q.format))
+                    .error(status_of(&e), e.message()),
+            );
+            return auth::error_response(&e);
+        }
     };
     let req = ScreenshotReq { display, format, max_long_edge: q.max };
     let action = format!("screenshot {display} {} max={:?}", format.ext(), q.max);
@@ -118,8 +133,20 @@ async fn screenshot_h(
 async fn act_h(
     State(s): State<AppState>,
     Extension(id): Extension<Identity>,
-    Json(a): Json<Action>,
+    body: std::result::Result<Json<Action>, JsonRejection>,
 ) -> Api<serde_json::Value> {
+    let Json(a) = match body {
+        Ok(j) => j,
+        Err(rej) => {
+            // A body that fails to parse never reaches the desktop, but it was an authorized
+            // request and belongs in the audit trail.
+            let e = RdcError::BadRequest(format!("invalid action body: {}", rej.body_text()));
+            s.audit.record(
+                Entry::new(&id.ip, Some(&id), "POST", "/v1/act").action("act (unparsed)").error(400, e.message()),
+            );
+            return Api(Err(e));
+        }
+    };
     let cap = match &a {
         Action::Input(_) | Action::Focus(_) => Capability::Input,
         Action::ClipboardSet { .. } => Capability::Clipboard,
@@ -144,6 +171,19 @@ async fn clipboard_h(State(s): State<AppState>, Extension(id): Extension<Identit
     .map(|text| serde_json::json!({ "text": text })))
 }
 
-async fn whoami_h(Extension(id): Extension<Identity>) -> Json<Identity> {
+async fn whoami_h(State(s): State<AppState>, Extension(id): Extension<Identity>) -> Json<Identity> {
+    s.audit.record(Entry::new(&id.ip, Some(&id), "GET", "/v1/whoami").action("whoami"));
     Json(id)
+}
+
+async fn health_h(State(s): State<AppState>, Extension(id): Extension<Identity>) -> &'static str {
+    s.audit.record(Entry::new(&id.ip, Some(&id), "GET", "/health").action("health"));
+    "ok"
+}
+
+/// Unknown paths reach here only after the auth middleware, so the caller is known.
+async fn not_found_h(State(s): State<AppState>, Extension(id): Extension<Identity>, uri: Uri) -> Response {
+    let e = RdcError::NotFound(format!("no route {}", uri.path()));
+    s.audit.record(Entry::new(&id.ip, Some(&id), "-", uri.path()).error(404, e.message()));
+    auth::error_response(&e)
 }

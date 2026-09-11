@@ -5,6 +5,11 @@ builds the GitHub release body from the matching `## <version>` section.
 
 ## Unreleased
 
+### Fixed
+- Audit completeness that 0.3.0's notes claimed but did not ship: `whoami`, `/health`, unknown
+  routes, malformed action bodies and screenshot parameter errors are now written to the audit
+  log. The 0.3.0 release only fixed the middleware's recorded status.
+
 ### Changed
 - Docs: the configuration guide now shows the Tailscale access-policy rule (`grants` and `acls`
   forms) that must accompany rdc's grants, and the troubleshooting table distinguishes a
