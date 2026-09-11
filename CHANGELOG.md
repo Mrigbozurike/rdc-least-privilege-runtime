@@ -11,7 +11,7 @@ builds the GitHub release body from the matching `## <version>` section.
   log. The 0.3.0 release only fixed the middleware's recorded status.
 
 ### Changed
-- **Windows: the scheduled task no longer runs elevated by default.** `rdc service install`
+- **Windows: the scheduled task no longer runs elevated by default** (thanks @Mrigbozurike). `rdc service install`
   now registers the logon task at `LeastPrivilege` run level, so the daemon holds only the
   user's standard token and the install itself no longer needs an Administrator shell. Input
   aimed at elevated windows is dropped by UIPI in this mode; pass `rdc service install
@@ -25,7 +25,7 @@ builds the GitHub release body from the matching `## <version>` section.
 ## 0.3.0 — 2026-09-10
 
 ### Added
-- **Config file permission check (Unix).** `rdc serve` and `rdc service install` refuse to run
+- **Config file permission check (Unix)** (thanks @Mrigbozurike). `rdc serve` and `rdc service install` refuse to run
   when `config.toml` or its directory is owned by another user or writable by group/others,
   because editing the allowlist is equivalent to desktop access. `rdc doctor` reports the check
   as `config perms`; `RDC_INSECURE_CONFIG=1` downgrades the refusal to a warning.
