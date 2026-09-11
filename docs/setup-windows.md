@@ -8,7 +8,7 @@ This guide is for the **machine being controlled**; the client side just needs t
 - Screenshots (about 0.3 s for 2560×1600), window list with titles, focus, mouse, keyboard,
   clipboard, Tailscale identity through the LocalAPI named pipe, the audit log.
 - `rdc service install` creates a Task Scheduler logon task that runs the daemon in your desktop
-  session, elevated, with a log file. Survives reboots and sign-in.
+  session as a standard user, with a log file. Survives reboots and sign-in.
 
 Not yet verified: multiple monitors (the code path exists, see issue #1), Windows 10.
 
@@ -20,11 +20,14 @@ Two Windows facts shape the setup:
    SSH session runs in session 0, which has no real display: `rdc doctor` there reports a fake
    1024×768 monitor and screenshots fail. `rdc service install` therefore uses a scheduled task
    that runs at logon as you, not a service.
-2. **It runs elevated.** Windows silently drops synthetic input aimed at elevated windows (an
-   Administrator PowerShell, an installer) and refuses to move focus to them from a
-   lower-integrity process. The task runs at the highest available run level so the whole
-   desktop stays controllable. UAC prompts on the secure desktop are still out of reach, by
-   design.
+2. **It runs as a standard user by default.** The task uses your normal, filtered token
+   (`LeastPrivilege` run level), so a remote-control process that anyone on your allowlist can drive holds no
+   more privilege than any app you double-click. The trade-off is UIPI: Windows silently drops
+   synthetic input aimed at *elevated* windows (an Administrator PowerShell, an installer) and
+   refuses to move focus to them from a lower-integrity process. If you need to drive elevated
+   windows remotely, `rdc service install --elevated` creates the task at the highest run level
+   instead; understand that this leaves a permanently elevated process listening on your
+   tailnet. UAC prompts on the secure desktop are out of reach either way, by design.
 
 ## Steps
 
@@ -52,19 +55,23 @@ Two Windows facts shape the setup:
    allow = ["you@example.com"]
    ```
 
-3. **Firewall.** Allow the port; the daemon only binds the Tailscale address regardless:
+3. **Firewall.** Allow the port from the tailnet only. The daemon binds just the Tailscale
+   address regardless, but scoping the rule means a future misconfiguration cannot expose it:
 
    ```powershell
-   New-NetFirewallRule -DisplayName "rdc (Tailscale)" -Direction Inbound -Protocol TCP -LocalPort 7770 -Action Allow
+   New-NetFirewallRule -DisplayName "rdc (Tailscale)" -Direction Inbound -Protocol TCP -LocalPort 7770 `
+     -RemoteAddress 100.64.0.0/10 -InterfaceAlias Tailscale -Action Allow
    ```
 
-4. **Install the task** from a PowerShell **run as Administrator**, signed in as the account
-   that uses the desktop. The task is registered at the highest run level, which needs an
-   elevated installer; `rdc service install` refuses otherwise.
+4. **Install the task** from a normal PowerShell, signed in as the account that uses the
+   desktop. The default task runs at standard integrity and needs no Administrator shell to
+   register. Only `--elevated` (highest run level) has to be run from an elevated PowerShell;
+   `rdc service install --elevated` refuses otherwise.
 
    ```powershell
-   rdc doctor            # tailscaled, config, grants; display info is only real from the desktop
-   rdc service install   # creates and starts task dev.rdc.daemon
+   rdc doctor                       # tailscaled, config, grants; display info is only real from the desktop
+   rdc service install              # creates and starts task dev.rdc.daemon as a standard user
+   rdc service install --elevated   # only if you must drive elevated windows (see above)
    rdc service status
    ```
 
@@ -88,6 +95,10 @@ install` with the new binary in place; it stops the previous instance first.
   consistent between screenshots and clicks, which is all that matters for the MCP mapping.
 - **Multi-monitor.** Pointer moves use `SendInput` normalised against the whole virtual desktop,
   so secondary displays should work, but this is untested until someone runs it with two screens.
+- **Elevated windows.** With the default (non-elevated) task, clicks and keystrokes aimed at an
+  elevated window are dropped and `focus` on it fails; the audit log records the action as
+  successful because Windows gives no error. Either close the elevated window, or reinstall with
+  `--elevated`.
 - **Focus.** Windows only lets a process take the foreground if it recently sent input. rdc
   attaches to the foreground thread's input queue (skipping threads that don't respond within
   200 ms) and, if that is refused, sends a zero-length mouse move and retries.

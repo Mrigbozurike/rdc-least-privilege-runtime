@@ -46,7 +46,7 @@ fn stderr_of(out: &std::process::Output) -> String {
 }
 
 /// True when this process runs with a high-integrity (elevated) token. Registering a task at
-/// the highest run level requires it.
+/// the highest run level requires it; a least-privilege task does not.
 fn is_elevated() -> bool {
     Command::new("whoami")
         .args(["/groups"])
@@ -86,8 +86,19 @@ fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
-fn task_xml(bin: &Path, log: &Path) -> String {
+/// Run level for the task principal. `LeastPrivilege` (the default) is the user's standard,
+/// filtered token: the daemon holds no more privilege than any app the user double-clicks,
+/// which is all a screen-and-input surface needs. The cost is UIPI: Windows drops synthetic
+/// input aimed at *elevated* windows and refuses to focus them from a lower-integrity process.
+/// `HighestAvailable` (`--elevated`) buys that back at the price of a permanently elevated
+/// remote-control process. UAC prompts on the secure desktop are out of reach either way.
+fn run_level(elevated: bool) -> &'static str {
+    if elevated { "HighestAvailable" } else { "LeastPrivilege" }
+}
+
+fn task_xml(bin: &Path, log: &Path, elevated: bool) -> String {
     let who = xml_escape(&principal());
+    let level = run_level(elevated);
     let args = xml_escape(&format!("--headless \"{}\" --log-file \"{}\" serve", bin.display(), log.display()));
     format!(
         r#"<?xml version="1.0" encoding="UTF-16"?>
@@ -105,7 +116,7 @@ fn task_xml(bin: &Path, log: &Path) -> String {
     <Principal id="Author">
       <UserId>{who}</UserId>
       <LogonType>InteractiveToken</LogonType>
-      <RunLevel>HighestAvailable</RunLevel>
+      <RunLevel>{level}</RunLevel>
     </Principal>
   </Principals>
   <Settings>
@@ -159,11 +170,11 @@ fn remove_legacy_task() {
 pub fn run(op: Op) -> Result<()> {
     let name = task_name();
     match op {
-        Op::Install => {
-            if !is_elevated() {
+        Op::Install { elevated } => {
+            if elevated && !is_elevated() {
                 bail!(
-                    "installing the rdc task needs an elevated PowerShell (run as Administrator) under the account that will use the desktop; \
-                     the task runs at the highest run level so it can drive elevated windows"
+                    "--elevated registers the task at the highest run level, which needs an elevated PowerShell (run as Administrator) \
+                     under the account that will use the desktop. Without --elevated the task runs at standard integrity and installs from a normal shell."
                 );
             }
             let bin = service_binary()?;
@@ -172,7 +183,7 @@ pub fn run(op: Op) -> Result<()> {
             let log = logs.join("serve.log");
             remove_legacy_task();
             let xml_path = std::env::temp_dir().join(format!("{name}.xml"));
-            write_utf16(&xml_path, &task_xml(&bin, &log))?;
+            write_utf16(&xml_path, &task_xml(&bin, &log, elevated))?;
             let out = schtasks(&["/Create", "/F", "/TN", &name, "/XML", &xml_path.to_string_lossy()])?;
             let _ = std::fs::remove_file(&xml_path);
             if !out.status.success() {
@@ -186,6 +197,17 @@ pub fn run(op: Op) -> Result<()> {
                 bail!("task created but /Run failed: {}", stderr_of(&out));
             }
             println!("installed scheduled task {name} → {}\nlogs: {}", bin.display(), log.display());
+            if elevated {
+                println!(
+                    "run level: HighestAvailable (elevated). The daemon holds your full admin token; \
+                     reinstall without --elevated to drop it."
+                );
+            } else {
+                println!(
+                    "run level: LeastPrivilege (standard user). Input to elevated windows will be ignored by \
+                     Windows; if you need that, reinstall with `rdc service install --elevated` from an admin shell."
+                );
+            }
             Ok(())
         }
         Op::Uninstall => {
@@ -227,5 +249,21 @@ pub fn run(op: Op) -> Result<()> {
             }
             Ok(())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn run_level_defaults_to_least_privilege() {
+        assert_eq!(run_level(false), "LeastPrivilege");
+        assert_eq!(run_level(true), "HighestAvailable");
+        let x = task_xml(Path::new(r"C:\rdc\rdc.exe"), Path::new(r"C:\logs\serve.log"), false);
+        assert!(x.contains("<RunLevel>LeastPrivilege</RunLevel>"));
+        assert!(!x.contains("HighestAvailable"));
+        let x = task_xml(Path::new(r"C:\rdc\rdc.exe"), Path::new(r"C:\logs\serve.log"), true);
+        assert!(x.contains("<RunLevel>HighestAvailable</RunLevel>"));
     }
 }

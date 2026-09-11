@@ -103,9 +103,11 @@ url = "http://host.tailnet.ts.net:7770"
 
 ### Windows
 
-Install the daemon with `rdc service install` (an elevated logon task in the user's desktop
-session); never run `rdc serve` from an SSH session, which has no real display. Coordinates are
-physical pixels. Details: `docs/setup-windows.md`.
+Install the daemon with `rdc service install` (a standard-user logon task in the user's desktop
+session); never run `rdc serve` from an SSH session, which has no real display. Input aimed at
+elevated windows (admin PowerShell, installers, UAC) is silently dropped unless the task was
+installed with `--elevated`; if a click on such a window has no effect, say so rather than
+retrying. Coordinates are physical pixels. Details: `docs/setup-windows.md`.
 
 ### Linux (Wayland/Hyprland)
 

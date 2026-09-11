@@ -23,11 +23,12 @@ empty allowlist.
 | `--bind IP` | listen address (must be a Tailscale address) |
 | `--dev-loopback` | bind 127.0.0.1 and skip authentication for loopback. **Testing only.** |
 
-### `rdc service install | uninstall | status`
+### `rdc service install [--elevated] | uninstall | status`
 
 Manage a per-user background service that runs `rdc serve`: a LaunchAgent on macOS
-(`dev.rdc.daemon`), a `systemd --user` unit on Linux, an elevated Task Scheduler logon task on
-Windows. The service runs the binary at the path `rdc service install` was invoked from, so
+(`dev.rdc.daemon`), a `systemd --user` unit on Linux, a Task Scheduler logon task on Windows. On
+Windows the task runs at standard integrity; `--elevated` requests the highest run level so the
+daemon can drive elevated windows (see [Windows setup](setup-windows.md#how-it-has-to-run)). The service runs the binary at the path `rdc service install` was invoked from, so
 install from the final location (on macOS, from inside `rdc.app`).
 
 ### `rdc audit [-n N] [--json] [--path FILE]`

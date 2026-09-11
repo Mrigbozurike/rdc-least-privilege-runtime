@@ -42,7 +42,7 @@ which one failed.
 | Wayland: `no way to move the mouse` | compositor lacks the wlr virtual pointer protocol (GNOME, KDE) | not supported yet; capture works, input does not (issue #2) |
 | clicks land in the wrong place | coordinates from a stale or differently sized screenshot; or CLI given image pixels instead of desktop points | take a new screenshot; use `rdc mcp`, or convert as in [CLI reference](cli.md#mapping-a-screenshot-pixel-to-a-click) |
 | `key`: `"foo" is not a modifier` | typo in the chord | see the chord grammar in the CLI reference |
-| Windows: input ignored or focus refused for an elevated app | UIPI; the daemon runs at lower integrity | use `rdc service install` (task runs elevated) rather than starting `rdc serve` from a normal shell |
+| Windows: input ignored or focus refused for an elevated app | UIPI; the daemon runs at standard integrity by default | close the elevated window, or reinstall with `rdc service install --elevated` if you accept a permanently elevated daemon |
 | Windows: `doctor` shows a 1024×768 "WinDisc" display and screenshots fail | you're in an SSH or service session (session 0) | run the daemon via `rdc service install`; test from the client machine |
 
 ## MCP

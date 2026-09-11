@@ -16,7 +16,7 @@ pub fn run(op: Op) -> Result<()> {
     let plist = plist_path()?;
     let target = format!("gui/{}/{LABEL}", uid());
     match op {
-        Op::Install => {
+        Op::Install { .. } => {
             let bin = service_binary()?;
             if !bin.to_string_lossy().contains(".app/Contents/MacOS/") {
                 eprintln!(

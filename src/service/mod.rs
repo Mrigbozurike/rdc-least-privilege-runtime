@@ -17,7 +17,11 @@ pub const LABEL: &str = "dev.rdc.daemon";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Op {
-    Install,
+    Install {
+        /// Windows only: run the daemon with the user's full (elevated) token so it can drive
+        /// elevated windows. Off by default; ignored on other platforms.
+        elevated: bool,
+    },
     Uninstall,
     Status,
 }
