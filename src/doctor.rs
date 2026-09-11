@@ -171,6 +171,13 @@ pub async fn run(request_permissions: bool) -> anyhow::Result<bool> {
         Err(e) => line(None, "clipboard", format!("{e}")),
     }
     line(None, "config", crate::config::path().display().to_string());
+    match crate::config::insecure_reason(&crate::config::path()) {
+        None => line(Some(true), "config perms", "owned by you, not writable by others"),
+        Some(r) => {
+            healthy = false;
+            line(Some(false), "config perms", format!("{r}; `rdc serve` will refuse to start"));
+        }
+    }
     match crate::config::load() {
         Ok(cfg) => {
             match cfg.serve.grants() {

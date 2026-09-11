@@ -240,6 +240,75 @@ pub fn path() -> PathBuf {
     dirs::config_dir().unwrap_or_else(|| PathBuf::from(".")).join("rdc").join("config.toml")
 }
 
+/// Environment variable that downgrades an insecure config file from an error to a warning.
+pub const INSECURE_CONFIG_ENV: &str = "RDC_INSECURE_CONFIG";
+
+/// Why the config file could be modified by someone other than its owner, if it could.
+///
+/// Editing `[serve].allow` is equivalent to full control of the desktop, so the file must be
+/// exactly as well protected as an `authorized_keys` file: owned by the user running the
+/// daemon, and neither it nor its directory writable by group or others. Only enforced on
+/// Unix; Windows ACLs on `%APPDATA%` already restrict the profile to its owner.
+pub fn insecure_reason(path: &std::path::Path) -> Option<String> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let me = unsafe { libc::getuid() };
+        let check = |p: &std::path::Path, what: &str| -> Option<String> {
+            let m = std::fs::metadata(p).ok()?;
+            if m.uid() != me {
+                return Some(format!("{what} {} is owned by uid {}, not by you (uid {me})", p.display(), m.uid()));
+            }
+            let mode = m.mode() & 0o777;
+            if mode & 0o022 != 0 {
+                let who = match (mode & 0o020 != 0, mode & 0o002 != 0) {
+                    (true, true) => "group- and world-writable",
+                    (true, false) => "group-writable",
+                    _ => "world-writable",
+                };
+                return Some(format!(
+                    "{what} {} is {who} (mode {mode:04o}); anyone who can edit it controls your desktop",
+                    p.display()
+                ));
+            }
+            None
+        };
+        if !path.exists() {
+            return None;
+        }
+        if let Some(r) = check(path, "config file") {
+            return Some(r);
+        }
+        if let Some(dir) = path.parent()
+            && let Some(r) = check(dir, "config directory")
+        {
+            return Some(r);
+        }
+        None
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        None
+    }
+}
+
+/// Refuse to run the daemon from a config file someone else could have edited, unless the
+/// operator has explicitly accepted that with `RDC_INSECURE_CONFIG=1`.
+pub fn enforce_permissions() -> Result<()> {
+    let p = path();
+    let Some(reason) = insecure_reason(&p) else { return Ok(()) };
+    if std::env::var(INSECURE_CONFIG_ENV).is_ok_and(|v| v == "1") {
+        tracing::warn!("{reason} ({INSECURE_CONFIG_ENV}=1 set, continuing)");
+        return Ok(());
+    }
+    anyhow::bail!(
+        "{reason}. Fix with `chmod 600 {}` and `chmod 700 {}`, or set {INSECURE_CONFIG_ENV}=1 to run anyway.",
+        p.display(),
+        p.parent().map(|d| d.display().to_string()).unwrap_or_default()
+    )
+}
+
 pub fn load() -> Result<Config> {
     let p = path();
     if !p.exists() {
@@ -353,6 +422,42 @@ allow = [{ who = "x", can = "shell" }]"#,
         assert_eq!(g.caps, caps(&[Capability::View, Capability::Clipboard]));
         assert!(parse_allow_flag("=view").is_err());
         assert!(parse_allow_flag("x=bogus").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn permission_check_flags_writable_file_and_dir() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("rdc-permtest-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let file = dir.join("config.toml");
+        std::fs::write(&file, "[serve]\nallow = ['a']\n").unwrap();
+
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
+        assert_eq!(insecure_reason(&file), None);
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o644)).unwrap();
+        assert_eq!(insecure_reason(&file), None, "world-readable is fine; the allowlist is not secret");
+
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o666)).unwrap();
+        let r = insecure_reason(&file).expect("world-writable file must be flagged");
+        assert!(r.contains("config file") && r.contains("world-writable"), "{r}");
+
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o620)).unwrap();
+        let r = insecure_reason(&file).unwrap();
+        assert!(r.contains("group-writable"), "{r}");
+
+        std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o777)).unwrap();
+        let r = insecure_reason(&file).expect("world-writable directory must be flagged");
+        assert!(r.contains("config directory"), "{r}");
+
+        // A missing file is not insecure; `load()` treats it as defaults.
+        assert_eq!(insecure_reason(&dir.join("nope.toml")), None);
+
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

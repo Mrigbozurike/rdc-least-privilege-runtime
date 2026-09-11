@@ -242,11 +242,30 @@ tailnet is already encrypted.
 3. A full URL, `http://host:port`.
 4. A bare `host` or `host:port`; the port defaults to `[serve].port`.
 
+## File permissions
+
+Whoever can edit `config.toml` can add themselves to `[serve].allow`, so the file is as
+sensitive as `~/.ssh/authorized_keys` and rdc treats it the same way. On Linux and macOS,
+`rdc serve` and `rdc service install` refuse to start when the config file or its directory is
+owned by another user or is writable by group or others; `rdc doctor` reports the same check as
+`config perms`. World-*readable* is fine (the allowlist is not a secret), but the recommended
+layout is:
+
+```sh
+chmod 700 ~/.config/rdc            # macOS: ~/Library/Application\ Support/rdc
+chmod 600 ~/.config/rdc/config.toml
+```
+
+Set `RDC_INSECURE_CONFIG=1` to turn the refusal into a logged warning if you have a deliberate
+reason (a shared dotfiles checkout, say). Windows is not checked: the per-user ACL on `%APPDATA%`
+already restricts it to the profile's owner and administrators.
+
 ## Environment variables
 
 | Variable | Effect |
 |---|---|
 | `RDC_TARGET` | default for `--target` |
 | `RDC_LOG` | log filter, e.g. `debug`, `rdc=debug,hyper=warn` (tracing syntax) |
+| `RDC_INSECURE_CONFIG` | set to `1` to run the daemon even if `config.toml` is writable by others (see [File permissions](#file-permissions)) |
 | `RDC_SIGN_IDENTITY` | macOS: code-signing identity name for `scripts/macos/bundle-and-sign.sh` (default `rdc-dev`) |
 | `RDC_ALLOW_ADHOC` | macOS: set to `1` to let the bundle script fall back to ad-hoc signing |

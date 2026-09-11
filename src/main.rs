@@ -209,6 +209,7 @@ async fn run(cli: Cli) -> Result<()> {
 
     match cli.cmd {
         Cmd::Serve { bind, port, allow, dev_loopback } => {
+            config::enforce_permissions()?;
             let desktop: Arc<dyn Desktop> = Arc::new(LocalDesktop::new()?);
             let ts = tailscale::Tailscale::detect();
             let mut grants = cfg.serve.grants()?;
@@ -238,6 +239,9 @@ async fn run(cli: Cli) -> Result<()> {
             mcp::run(desktop, cli.target.clone(), max).await
         }
         Cmd::Service { op } => {
+            if matches!(op, ServiceOp::Install) {
+                config::enforce_permissions()?;
+            }
             if matches!(op, ServiceOp::Install) && cfg.serve.grants()?.is_empty() {
                 anyhow::bail!(
                     "[serve].allow in {} is empty; the service would start `rdc serve` with nobody allowed and exit. \
