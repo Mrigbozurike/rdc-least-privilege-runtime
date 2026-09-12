@@ -20,7 +20,11 @@ pub async fn run(request_permissions: bool) -> anyhow::Result<bool> {
     let me = crate::privdrop::current();
     if me.is_root() {
         healthy = false;
-        line(Some(false), "process user", "root — `rdc serve` refuses to run as root; run it as the desktop user");
+        line(
+            Some(false),
+            "process user",
+            "root — `rdc serve` refuses to run as root; run it as the desktop user or set [serve].user to drop to",
+        );
     } else {
         line(Some(true), "process user", format!("{} (uid {})", me.name, me.uid));
     }
