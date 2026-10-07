@@ -9,6 +9,15 @@ builds the GitHub release body from the matching `## <version>` section.
 - **`rdc serve` refuses to run with root privileges.** It never needs them and a remote-control
   surface should not hold them; started with a real or effective uid of 0 it exits with a
   message. `rdc doctor` reports the process user. Unix only.
+- **Audit lines record the focused window and the screenshot hash.** Screenshot, input, focus
+  and clipboard entries carry `window` (`app: title` of the window that had focus when the
+  request arrived, sanitised and truncated like every other field), and screenshot entries carry
+  `screenshot_sha256` of the bytes returned, so an action can be tied to what was on screen and
+  a saved image to the line that produced it. The lookup is a direct focused-window query per
+  platform — `GetForegroundWindow` on Windows, `hyprctl activewindow` on Hyprland,
+  `NSWorkspace`'s `activeApplication` on macOS — and reads the title and application of that one
+  window, rather than enumerating the desktop. It runs off the request thread under one timeout
+  for every backend; `rdc doctor` reports how long it takes. `[serve.audit].window_titles = false` omits it.
 
 ## 0.4.0 — 2026-09-11
 
